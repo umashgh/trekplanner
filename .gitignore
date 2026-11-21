@@ -54,7 +54,7 @@ nosetests.xml
 coverage.xml
 
 # Data dumps
-data_dump.json
+# data_dump.json
 
 # Temporary / downloaded files
 *.csv
