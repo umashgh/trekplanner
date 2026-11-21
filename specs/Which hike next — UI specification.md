@@ -1,0 +1,278 @@
+# Which hike next? — UI specification
+
+Nov 14, 2026 · @Umashankar M
+
+## Overview
+
+Which hike next? is a single, free, mobile-first page that answers one question: which Himalayan trek in India or Nepal can I do in a given season? It shows trek data that a Django backend scrapes from operator websites, so visitors don't have to open each operator's site one by one.
+
+The working prototype is the visual reference for this spec: [Which hike next? prototype](https://claude.ai/artifact/XujuKTRghy6EPzQpHCPvCB). Where this document and the prototype disagree, this document wins.
+
+**Scope of v1**
+
+- One page: the homepage with search, map, range chart and trek cards.
+- No login, accounts, saved searches or bookings. Every page load starts a fresh search.
+- Data is read-only and comes from the Django backend.
+- Out of scope: the trek detail page, operator comparison and price display. These are covered under Open items.
+
+**Audience**
+
+Trekkers of any age who are young at heart: first-timers looking for an easy weekend trek through to experienced trekkers planning a high pass. Most will arrive on a phone, often from a social share or a search result.
+
+**Design principles**
+
+1. **Sparse and dark.** A near-black page. Information sits in pale yellow blocks, and nothing else competes for attention.
+2. **Data as terrain.** Every chart is drawn as mountains: months as a ridge, regions as a crest, treks as peaks, altitude as a profile.
+3. **One question.** The page reads as a sentence the visitor completes: "What can I do next spring?"
+4. **Fast, no fuss.** Server-rendered Django template, plain JavaScript, no framework, no build step.
+
+## Visual system
+
+The page uses one dark theme on purpose. It does not switch to light mode, and every colour comes from the tokens below, declared once in `:root`.
+
+**Colour tokens**
+
+| Token | Hex | Used for |
+| --- | --- | --- |
+| `--bg` | #121310 | Page background (warm near-black) |
+| `--panel` | #1b1c17 | Filter box and map panel |
+| `--line` | #34352c | Panel borders, baselines, inactive chip borders |
+| `--text` | #ecead9 | Primary text on dark |
+| `--muted` | #a3a18c | Secondary text, axis labels, captions |
+| `--sun` | #f2e4a6 | Pale yellow: trek cards, selected states, title, Hard peaks |
+| `--sun-2` | #c9ba79 | Moderate peaks, map dot outlines |
+| `--sun-3` | #6f6a50 | Easy peaks |
+| `--ink` | #2a240e | Text on pale yellow |
+| `--ink-2` | #6b5f2c | Secondary text on pale yellow |
+| (fill) | #e2d18a | Profile area fill and departure-month cells on cards |
+| (fill) | #3d3e33 | Unselected month peaks in the ridge |
+| (fill) | #24251f | Background of the three dropdown tiles |
+
+Difficulty is shown by brightness: Easy is the darkest yellow (`--sun-3`), Moderate is mid (`--sun-2`) and Hard is the palest (`--sun`). Brightness must stay in that order wherever difficulty is coloured. Always pair the colour with a text label too, because colour alone is not enough.
+
+**Typography**
+
+| Role | Font | Size / weight | Notes |
+| --- | --- | --- | --- |
+| Site title | Big Shoulders Display | 40px / 800 | Colour `--sun`, line-height 1 |
+| Search question | Big Shoulders Display | 26px / 600 | Selected values in 800 weight, colour `--sun` |
+| Section heading | Big Shoulders Display | 22px / 600 | "Pick a region", "14 treks fit" |
+| Trek name on card | Big Shoulders Display | 24px / 800 | Colour `--ink` |
+| Body | Work Sans | 15px / 400, line-height 1.55 |  |
+| Small labels | Work Sans | 11–13px / 400–500 | Stat labels, chip text, axis labels |
+| Stat values | Work Sans | 15px / 600 | Tabular numbers (`font-variant-numeric: tabular-nums`) |
+
+Load both fonts from Google Fonts with `display=swap`. Fallbacks: `'Arial Narrow', sans-serif` for display text and `system-ui, sans-serif` for body text. Never use text smaller than 10px.
+
+**Spacing, shape and motion**
+
+- Page column: max-width 620px, centred, 16px side padding, 22px between sections.
+- Panels: 16px radius, 1px `--line` border, 16px padding.
+- Trek cards: 16px radius, no border at rest, 14px × 16px padding, 12px apart.
+- Chips: fully rounded (999px), 5px × 12px padding.
+- Dropdown tiles: 10px radius.
+- Motion: only short colour and border transitions (0.2s) and a smooth scroll to a card. Turn all of it off under `prefers-reduced-motion`.
+- No shadows, no gradients.
+
+## Page structure and layout
+
+The page is one centred column (max-width 620px) of seven stacked blocks. The search comes first so a visitor can change it without scrolling, and the trek cards come last. The column never splits into a sidebar.
+
+&#91;embedded content: page anatomy · phone view, 7 blocks\]
+
+Use semantic markup: `<header>`, then `<main>` holding a `<section>` for each block, with an `aria-label` on each section. Render the header, panels and empty containers on the server; the script fills in the charts and cards on load.
+
+## Components
+
+The page has seven components. All the charts are inline SVG generated by JavaScript from the data, using one `viewBox` each and `width:100%` so they scale with the column.
+
+### 1. Header
+
+- Title "Which hike next?" followed by a smiley drawn as inline SVG (a circle, two eyes and a smile in `--sun`, 30 × 30px). Don't use an emoji, because emoji render differently on every phone.
+- One-line kicker under the title in `--muted`: "Himalayan treks across India and Nepal, gathered from every operator in one place."
+
+### 2. Filter box
+
+A `--panel` block that holds, from top to bottom:
+
+1. **Search question.** A live sentence that rewrites itself from the filters. Format: `What can I do <when><where>?`. Examples: "What can I do next spring?", "What can I do in April in Khumbu?", "What can I do any time of year?". The changing parts are shown in `--sun`. Mark it `aria-live="polite"`.
+2. **Season chips.** Spring (Mar–May), Summer (Jun–Sep), Autumn (Oct–Nov), Winter (Dec–Feb), Any time. Selected chip: `--sun` fill, `--ink` text. A chip shows as selected only when the selected months exactly match that season.
+3. **Month ridge** (the first filter). Twelve overlapping triangle peaks, January to December. Each peak's height is the number of treks with a departure in that month, counting only treks that pass the other filters (region, days, level). Selected months are filled `--sun` and drawn in front; the rest are #3d3e33. The count is printed above each peak. Month labels sit along the baseline, and each month column is a full-height button.
+4. **Three dropdowns** in a 3-column grid: Region, Days, Level. Use native `<select>` elements for the mobile pickers, restyled as tiles with a small grey label above a value in `--sun`. Options:
+   - Region: Anywhere, then every region from the data.
+   - Days: Any, Up to 5, 6 to 9, 10 or more.
+   - Level: Any, Easy, Moderate, Hard.
+
+### 3. Region map
+
+A `--panel` block headed "Pick a region", with an "Anywhere" text button on the right that clears the region.
+
+- **Base drawing:** a jagged ridge of small triangles following the Himalayan crest from west (Kashmir) to east (Sikkim). Taller triangles get a pale snow cap (#8d876a). Generate it from a fixed seed so it looks the same on every load. Faint "INDIA" text sits below the arc.
+- **No political borders.** Leaving out national and state lines keeps the map clear of disputed boundaries in Kashmir and Ladakh. This is deliberate and must stay.
+- **Projection:** a simple linear lat/lon to x/y mapping, with the Nepal section (east of 81°E) stretched so its regions don't overlap. A region may carry a display longitude (`dlon`) to nudge it apart from its neighbour.
+- **Region dots:** a circle (8px radius, with a 14px invisible tap area) holding the number of matching treks, plus the region name above, below or to the left of the dot. Selected: filled `--sun`, name in `--sun`. Regions with zero matches drop to 35% opacity but stay tappable.
+- Tapping a dot selects that region; tapping it again clears it. The map and the Region dropdown always show the same selection.
+
+### 4. Results heading and range chart
+
+- Heading: "14 treks fit" (singular: "1 trek fits").
+- Caption in `--muted`: "West to east. Each peak is a trek: height is its highest point, width is its length in days. Tap a peak."
+- **Chart (viewBox 360 × 190):** one peak per matching trek.
+  - x position: treks are ordered by their region's longitude (west to east), then by days, and spaced evenly with 48px margins on each side.
+  - Height: the trek's highest altitude on a fixed 500–6,000 m scale. Dashed gridlines at 2,000, 3,000, 4,000 and 5,000 m, with labels drawn on top of the peaks using a dark text outline.
+  - Half-width: 10 + days × 3.4px.
+  - Shape: a slightly asymmetric peak with shoulders, filled by difficulty colour, with a 1px `--bg` outline so overlapping peaks stay distinct.
+  - Draw order: tallest first, so shorter peaks sit in front.
+- **Focus:** one peak is always in focus, by default the tallest. The focused peak gets a 1.5px `--text` outline, a white snow tip if it's Hard, and a label above it: "Everest Base Camp · 5,545 m". Keep the label inside the chart's edges.
+- Tapping a peak (or pressing Enter or Space on it) focuses it, outlines its card and smoothly scrolls the card into view.
+- Legend below the chart: Easy, Moderate, Hard swatches.
+
+### 5. Trek card
+
+Pale yellow (`--sun`) block, `--ink` text, with a 2px transparent border that turns `--text` when the trek is in focus. Sorted by number of departures, most first. Contents, top to bottom:
+
+1. **Header row:** trek name (display font) on the left; "Region · Country" in `--ink-2` on the right. It wraps on narrow screens.
+2. **Elevation profile** (viewBox 300 × 58): one point per day from `profile`, on the same fixed 500–6,000 m scale for every card so cards can be compared. Draw an area fill in #e2d18a, a 1.6px `--ink` line, a dot on the highest point, and a dashed 4,000 m reference line with its label.
+3. **Three stats:** Days · Highest point (e.g. "4,600 m", Indian number grouping) · Level.
+4. **Level note**, one line in plain language:
+   - Easy: "For any fit walker. 4 to 5 hours a day."
+   - Moderate: "You can walk 6 hours a day on hills."
+   - Hard: "Best if you have done a 4,000 m trek before."
+5. **Month strip:** 12 cells (J F M A M J J A S O N D). Months with departures are filled #e2d18a. Months that have departures and are also in the selected search are filled `--ink` with `--sun` text.
+6. **Departures:** a native `<details>` element. The summary reads "38 departures · 9 operators" on the left and "See dates" on the right. When opened, it lists the coming departure months starting from the current month, each with its year and number of batches.
+
+### 6. Empty state
+
+When nothing matches, show a dashed-border panel instead of the cards: "No departures match that search. Try another month or region." with a "Show everything" chip that resets all filters. The range chart keeps its gridlines with no peaks.
+
+### 7. Footer
+
+Centred, `--muted`, 12px. In production it should give the date and time of the last scrape, for example "Updated from operator sites 14 Nov 2026, 06:00 IST".
+
+## Filter state and logic
+
+All filtering happens in the browser on the full trek list that Django sends with the page, so changing a filter needs no round trip to the server. With a few hundred treks this stays instant.
+
+**State**
+
+| Field | Values | Default on page load |
+| --- | --- | --- |
+| `months` | Set of 1–12; empty means any time | {3, 4, 5}, i.e. "next spring" |
+| `region` | `all` or a region key | `all` |
+| `dur` | `any`, `short` (≤5 days), `mid` (6–9), `long` (≥10) | `any` |
+| `level` | `any`, 1, 2, 3 | `any` |
+| `focus` | trek id or none | tallest matching trek |
+
+Every page load starts from these defaults. Nothing is stored in cookies or localStorage. Changing any filter clears `focus`, so the chart refocuses on the tallest trek that still matches.
+
+**Matching rules (all must pass)**
+
+- Months: the trek has at least one departure month in `months`, or `months` is empty.
+- Region: `region` is `all`, or it equals the trek's region.
+- Days: the trek's day count falls in the `dur` band.
+- Level: `level` is `any`, or it equals the trek's level.
+
+**Interactions**
+
+- Tap a month on the ridge: select only that month. Tap it again when it's the only one selected: clear to any time.
+- Tap a season chip: select that season's months. Tap "Any time": clear all months.
+- Tap a map dot: select that region. Tap the selected dot again, or the "Anywhere" button: clear the region. The Region dropdown stays in sync both ways.
+- Days and Level dropdowns: apply as soon as the value changes.
+- Tap a peak: focus that trek, outline its card and scroll the card into view.
+
+**Counts shown on the filters**
+
+Each filter's counts leave out its own value, so they always show what you'd get by picking that option. Month ridge counts apply region, days and level, but not months. Map dot counts apply months, days and level, but not region.
+
+**Re-render order:** question → season chips → month ridge → map dots → results heading → range chart → cards. The map's base ridge is drawn once; only the dots are redrawn.
+
+## Data contract with the Django backend
+
+The view renders one template and embeds two JSON lists with Django's `json_script` filter. The front-end script reads them by element id and needs no API calls.
+
+```html
+{{ regions|json_script:"regions-data" }}
+{{ treks|json_script:"treks-data" }}
+```
+
+`json_script` escapes the output safely, so scraped text can't break the page. Don't build these lists with `|safe` and string concatenation.
+
+**Region object**
+
+| Field | Type | Example | Notes |
+| --- | --- | --- | --- |
+| `key` | string | `khumbu` | Stable slug, used as the filter value |
+| `label` | string | `Everest` | Shown on the map and dropdown |
+| `country` | string | `Nepal` | India or Nepal |
+| `lat`, `lon` | number | 28.0, 86.8 | Rough centre of the region |
+| `dlon` | number, optional | 84.85 | Display longitude to nudge a crowded dot |
+| `lab` | `up` / `down` / `left` | `up` | Which side of the dot the label sits on |
+
+The prototype uses nine regions: Kashmir, Ladakh, Himachal, Uttarakhand, Annapurna, Manaslu, Langtang, Everest (Khumbu) and Sikkim (which includes the Darjeeling side). Region positions are display settings, so keep them in a small admin-editable model rather than in scraped data.
+
+**Trek object**
+
+| Field | Type | Example | Notes |
+| --- | --- | --- | --- |
+| `id` | string | `goechala` | Slug, also used in the card's HTML id (`t-<id>`) |
+| `name` | string | `Goechala` | Canonical name, de-duplicated across operators |
+| `region` | string | `sikkim` | Region `key` |
+| `days` | integer | 10 | Typical itinerary length, start to end point |
+| `level` | 1, 2 or 3 | 3 | Easy, Moderate, Hard, normalised from operator labels |
+| `months` | list of 1–12 | \[4, 5, 10, 11\] | Months with at least one upcoming departure |
+| `deps` | integer | 20 | Upcoming departures across all operators |
+| `ops` | integer | 6 | Number of operators listing the trek |
+| `profile` | list of numbers (m) | \[1780, 2650, …, 1780\] | Overnight altitude for each day, start to finish |
+
+The highest point shown on the card and the chart is `max(profile)`. If the scraper also finds a pass or summit higher than any overnight camp, add an optional `max_alt` field and use it when it's present.
+
+**Backend responsibilities the UI depends on**
+
+- **One trek, many operators.** Combine the same trek from different operators into one record ("Kedarkantha" vs "Kedarkanta Peak Trek"). Fuzzy-matching names is the hard part, and it needs a manual override table.
+- **Normalise difficulty.** Operators use their own scales (Easy–Moderate, Grade 2/5 and so on). Map them all onto 1–3.
+- **Altitude profile.** Most itineraries list each day's camp altitude. Where they don't, store just the start altitude and highest point, and draw a straight rise and fall between them. Flag those cards in the data so the profile can be drawn as a dashed line.
+- **Departures by month.** Store individual departure dates per operator and send only the per-month summary to this page. The departures list on the card currently shows an even split per month; replace it with real counts per month (`deps_by_month`) when the backend has them.
+- **Freshness.** Show the scrape timestamp in the footer. Hide departures whose date has passed.
+
+## Copy, accessibility, performance and responsive behaviour
+
+**Copy rules**
+
+- Use sentence case everywhere and keep the tone friendly and plain.
+- Write altitudes in metres with Indian digit grouping (4,600 m, 5,545 m). Write days as whole numbers.
+- Describe difficulty in terms of what the walker can do, not just a grade label.
+- Never describe a trek as safe or easy beyond what the level note says.
+
+**Accessibility**
+
+- The search question is an `aria-live="polite"` region, so screen readers announce the new question after a filter change.
+- Month buttons use `aria-pressed` and an `aria-label` such as "April, 11 treks".
+- Map dots and chart peaks are SVG groups with `role="button"`, `tabindex="0"`, an `aria-label` ("Everest, 2 treks"; "Goechala, 4,600 metres, 10 days"), and Enter/Space support.
+- The decorative profile SVGs on cards are `aria-hidden`. Their data is already in the stats row. The month strip carries an `aria-label` listing the departure months.
+- Focus ring: a 2px `--sun` outline on every interactive element.
+- Contrast: `--ink` on `--sun` and `--text` on `--bg` both pass WCAG AA. Check `--muted` on `--panel` before changing either colour.
+
+**Performance targets**
+
+- One HTML response, about 60 KB including the data for 200 treks. The only extra request is the font CSS.
+- No JavaScript framework, no bundler, no external chart library. The inline script is about 250 lines.
+- Cache the rendered page in Django (for example per-view cache for 15 minutes) and refresh it when a scrape finishes.
+- Largest contentful paint under 1.5 s on a mid-range Android phone over 4G.
+
+**Responsive behaviour**
+
+- Design for a 360–430px wide phone first. The column stays capped at 620px on tablets and desktops, centred on the dark page.
+- Charts scale with the column width via `viewBox`, so they need no breakpoints.
+- The three dropdowns stay in one row down to 320px. Below that the labels can be shortened.
+- Optional desktop upgrade (above 960px): show the cards in two columns beneath the chart. This is not needed for v1.
+
+## Open items and future work
+
+- [ ] Replace the prototype's example numbers (departures, operators, altitude profiles) with real scraped data before launch.
+- [ ] Decide what "See dates" should lead to: an inline list of operators and dates, or a separate trek detail page.
+- [ ] Trek detail page: compare operators by date, price, group size and inclusions, with a link out to each operator's booking page.
+- [ ] Should the page link to operators at all in v1, and should those links carry referral parameters?
+- [ ] Nepal permit and guide requirements: show as a badge on Nepal cards (for example "Guide required")?
+- [ ] Optional deep links such as `/?m=4&r=khumbu`, so a search can be shared. This doesn't break the fresh-search-per-visit rule, because the page still starts from defaults when no parameters are given.
+- [ ] Lower-priority filters to consider later: starting city, budget, teahouse or camping.
+- [ ] Final name, domain and favicon (the title is a working title).

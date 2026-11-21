@@ -1,0 +1,111 @@
+{% extends "treks/base.html" %}
+{% load humanize %}
+{% block title %}Site Metrics{% endblock %}
+{% block head %}
+<style>
+.metrics-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:20px}
+.metric-card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px;text-align:center}
+.metric-val{font-family:var(--display);font-size:32px;font-weight:600}
+.metric-lab{color:var(--muted);font-size:13px;margin-top:2px}
+.table-section{margin-bottom:24px}
+.table-section h3{font-family:var(--display);font-size:18px;font-weight:600;margin:0 0 8px}
+table.metrics{width:100%;border-collapse:collapse;font-size:13px}
+table.metrics th,table.metrics td{padding:6px 10px;text-align:left;border-bottom:1px solid var(--line)}
+table.metrics th{color:var(--muted);font-weight:500}
+table.metrics td:last-child{text-align:right;font-variant-numeric:tabular-nums}
+.bar{display:inline-block;height:14px;background:var(--open);border-radius:3px;vertical-align:middle;margin-right:6px;min-width:2px}
+.period-links{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap}
+.period-links a{font-size:13px;padding:4px 10px;border:1px solid var(--line);border-radius:6px;text-decoration:none;color:var(--fg)}
+.period-links a.active{background:var(--fg);color:var(--bg)}
+.chart-daily{margin:12px 0 24px}
+.chart-daily svg{width:100%;display:block}
+</style>
+{% endblock %}
+
+{% block content %}
+<h2 style="font-family:var(--display);font-size:22px;margin:0 0 16px">Site Metrics</h2>
+
+<div class="period-links">
+  <a href="?days=7" {% if days == 7 %}class="active"{% endif %}>7 days</a>
+  <a href="?days=30" {% if days == 30 %}class="active"{% endif %}>30 days</a>
+  <a href="?days=90" {% if days == 90 %}class="active"{% endif %}>90 days</a>
+</div>
+
+<div class="metrics-grid">
+  <div class="metric-card">
+    <div class="metric-val">{{ total_views|intcomma }}</div>
+    <div class="metric-lab">Page views</div>
+  </div>
+  <div class="metric-card">
+    <div class="metric-val">{{ unique_ips|intcomma }}</div>
+    <div class="metric-lab">Unique IPs</div>
+  </div>
+  <div class="metric-card">
+    <div class="metric-val">{{ unique_sessions|intcomma }}</div>
+    <div class="metric-lab">Sessions</div>
+  </div>
+</div>
+
+{% if by_day %}
+<div class="chart-daily">
+  <h3 style="font-family:var(--display);font-size:18px;font-weight:600;margin:0 0 8px">Daily views</h3>
+  {{ by_day|json_script:"daily-data" }}
+  <div id="daily-chart"></div>
+  <script>
+  (function(){
+    const data = JSON.parse(document.getElementById("daily-data").textContent);
+    if (!data.length) return;
+    const W = data.length * 10, H = 80, barH = 60;
+    let svg = `<svg viewBox="0 0 ${W} ${H}" style="width:100%;max-height:120px">`;
+    data.forEach((d, i) => {
+      const y = barH - d.height;
+      svg += `<rect x="${i*10}" y="${y}" width="8" height="${d.height}" rx="2" fill="var(--open)"><title>${d.day}: ${d.count} views</title></rect>`;
+    });
+    [0, Math.floor(data.length/2), data.length-1].forEach(i => {
+      if (data[i]) {
+        const label = new Date(data[i].day).toLocaleDateString("en-GB",{day:"numeric",month:"short"});
+        svg += `<text x="${i*10}" y="${H-2}" fill="var(--muted)" font-size="7" font-family="var(--body)">${label}</text>`;
+      }
+    });
+    svg += `</svg>`;
+    document.getElementById("daily-chart").innerHTML = svg;
+  })();
+  </script>
+</div>
+{% endif %}
+
+<div class="table-section">
+  <h3>Top pages</h3>
+  <table class="metrics">
+    <thead><tr><th>Path</th><th>Views</th></tr></thead>
+    <tbody>
+    {% for row in by_path %}
+    <tr>
+      <td>
+        <span class="bar" style="width:{{ row.pct }}px"></span>
+        {{ row.path }}
+      </td>
+      <td>{{ row.count|intcomma }}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% if by_referrer %}
+<div class="table-section">
+  <h3>Top referrers</h3>
+  <table class="metrics">
+    <thead><tr><th>Referrer</th><th>Views</th></tr></thead>
+    <tbody>
+    {% for row in by_referrer %}
+    <tr>
+      <td style="max-width:400px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ row.referrer }}</td>
+      <td>{{ row.count|intcomma }}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+{% endblock %}

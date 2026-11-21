@@ -1,0 +1,7 @@
+Django>=5.0,<5.2
+django-axes>=9.0,<10
+gunicorn>=22.0
+python-dotenv>=1.0
+requests>=2.31
+whitenoise>=6.5
+fast-flights>=3.1

@@ -1,0 +1,159 @@
+{% extends "treks/base.html" %}
+{% load humanize %}
+{% block title %}Trek Calendar · Trek Planner{% endblock %}
+{% block head %}
+<style>
+.toolbar{display:flex;flex-wrap:wrap;gap:16px;align-items:flex-end;justify-content:space-between}
+.filters{display:flex;flex-direction:column;gap:8px}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:4px 11px;font:500 13px var(--body);cursor:pointer}
+.chip input{margin:0}
+.refresh{display:flex;flex-direction:column;gap:6px;align-items:flex-end}
+.legend{display:flex;flex-wrap:wrap;gap:14px;color:var(--muted);font-size:12.5px}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.sw{width:12px;height:12px;border-radius:3px;display:inline-block;color:#fff;font:700 9px/12px var(--body);text-align:center}
+.month{display:flex;flex-direction:column;gap:10px}
+.month h2{font-family:var(--display);font-size:18px;font-weight:600;margin:0}
+.scroll{overflow-x:auto}
+table{border-collapse:separate;border-spacing:2px;font-variant-numeric:tabular-nums}
+th,td{padding:0}
+th.lab{position:sticky;left:0;background:var(--surface);text-align:left;font-weight:500;white-space:nowrap;padding-right:10px;font-size:13px;z-index:1}
+th.lab small{color:var(--muted);font-weight:400;margin-left:6px}
+thead th{font-size:10.5px;color:var(--muted);font-weight:500;width:22px;text-align:center;line-height:1.2}
+thead th.we{color:var(--fg)}
+td{width:22px;height:22px;border-radius:4px;background:color-mix(in srgb,var(--line) 45%,transparent);text-align:center;font-size:10px;color:#fff;font-weight:700}
+td.we{background:color-mix(in srgb,var(--line) 85%,transparent)}
+td.b{cursor:pointer}
+td.open{background:var(--open)} td.last{background:var(--last)} td.waitlist{background:var(--wl)}
+td.full{background:var(--full)} td.closed{background:var(--closed)} td.unknown{background:var(--open);opacity:.55}
+td.planned{box-shadow:0 0 0 2px var(--pick)}
+.empty{padding:24px;text-align:center}
+#pop{position:fixed;z-index:20;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:12px 14px;box-shadow:0 8px 24px rgba(0,0,0,.15);font-size:13px;max-width:300px;display:flex;flex-direction:column;gap:6px}
+#pop[hidden]{display:none}
+#pop b{font-family:var(--display)}
+.sources{font-size:13px;display:flex;flex-direction:column;gap:4px}
+.sources .err{color:var(--warn)}
+</style>
+{% endblock %}
+{% block content %}
+<form class="toolbar card" method="get">
+  <div class="filters">
+    <div class="chips" role="group" aria-label="Treks">
+      {% for t in treks %}<label class="chip"><input type="checkbox" name="trek" value="{{ t.pk }}" {% if t.pk|stringformat:"s" in sel_treks %}checked{% endif %} onchange="this.form.submit()">{{ t.name }}</label>{% endfor %}
+    </div>
+    <div class="chips" role="group" aria-label="Operators">
+      {% for o in operators %}<label class="chip"><input type="checkbox" name="op" value="{{ o.pk }}" {% if o.pk|stringformat:"s" in sel_ops %}checked{% endif %} onchange="this.form.submit()">{{ o.name }}</label>{% endfor %}
+    </div>
+  </div>
+  <div class="refresh">
+    <button class="btn" type="submit" form="refresh-form">Refresh all data</button>
+    <span class="muted">{% if last_run %}Last refresh {{ last_run.started_at|naturaltime }} · {{ last_run.get_state_display }}{% else %}Not refreshed yet{% endif %}</span>
+  </div>
+</form>
+<form id="refresh-form" method="post" action="{% url 'treks:refresh' %}">{% csrf_token %}</form>
+
+<div class="legend">
+  <span><i class="sw" style="background:var(--open)"></i>Open</span>
+  <span><i class="sw" style="background:var(--last)"></i>Last few seats</span>
+  <span><i class="sw" style="background:var(--wl)"></i>Waitlist</span>
+  <span><i class="sw" style="background:var(--full)"></i>Full</span>
+  <span><i class="sw" style="background:var(--closed)"></i>Closed</span>
+  <span><i class="sw" style="box-shadow:0 0 0 2px var(--pick)"></i>Pencilled in</span>
+  <span><i class="sw" style="background:var(--open)">$</i>Flight {{ pct_limit }}%+ above that airport's cheapest</span>
+</div>
+
+{% for m in month_blocks %}
+<section class="month card">
+  <h2>{{ m.label }}</h2>
+  <div class="scroll"><table>
+    <thead><tr><th class="lab"></th>{% for d in m.days %}<th class="{% if d.weekend %}we{% endif %}">{{ d.n }}<br>{{ d.wd }}</th>{% endfor %}</tr></thead>
+    <tbody>
+    {% for r in m.rows %}
+      <tr><th class="lab">{{ r.listing.trek.name }}<small>{{ r.listing.operator.short_name }}</small></th>
+      {% for cell in r.cells %}{% with c=cell.c %}{% if c %}<td tabindex="0" class="b {{ c.batch.status }}{% if c.planned %} planned{% endif %}"
+          data-id="{{ c.batch.pk }}"
+          data-title="{{ r.listing.trek.name }} · {{ r.listing.operator.short_name }}"
+          data-dates="{{ c.batch.start_date|date:'j M' }} → {{ c.batch.end_date|date:'j M Y' }}"
+          data-status="{{ c.batch.get_status_display }}{% if c.batch.seats_left and c.batch.status == 'last' %} ({{ c.batch.seats_left }} left){% endif %}"
+          data-fare="{% if c.quote %}{{ home }}→{{ c.quote.destination_id }} return ₹{{ c.quote.price|intcomma }} ({{ c.quote.depart_date|date:'j M' }}–{{ c.quote.return_date|date:'j M' }}{% if c.quote.airlines %}, {{ c.quote.airlines }}{% endif %}) · {% if c.pct > 0 %}+{% endif %}{{ c.pct }}% vs cheapest{% else %}Flight not priced yet{% endif %}"
+          data-url="{{ r.listing.page_url }}"
+          data-planned="{{ c.planned|yesno:'1,0' }}">{% if c.expensive %}${% endif %}</td>{% else %}<td{% if cell.d.weekend %} class="we"{% endif %}></td>{% endif %}{% endwith %}{% endfor %}
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+</section>
+{% empty %}
+<div class="card empty">
+  <p><b>No batches yet.</b></p>
+  <p class="muted">Run <code>python manage.py seed_treks</code> once, then press <b>Refresh all data</b>.</p>
+</div>
+{% endfor %}
+
+<div class="card sources">
+  <b>Sources</b>
+  {% for l in listings %}
+    <div>{{ l.trek.name }} · {{ l.operator.short_name }}: <a href="{{ l.page_url }}" target="_blank" rel="noopener">page</a>
+      {% if l.last_error %}<span class="err">· {{ l.last_error }}</span>{% elif l.last_fetched_at %}<span class="muted">· fetched {{ l.last_fetched_at|naturaltime }}</span>{% endif %}</div>
+  {% endfor %}
+  {% if cheapest %}<div class="muted">Cheapest stored return fares: {% for k, v in cheapest.items %}{{ k }} ₹{{ v|intcomma }}{% if not forloop.last %} · {% endif %}{% endfor %}</div>{% endif %}
+</div>
+
+<div id="pop" hidden></div>
+{% endblock %}
+{% block scripts %}
+<script>
+const pop = document.getElementById("pop");
+const csrf = document.querySelector("#refresh-form [name=csrfmiddlewaretoken]").value;
+let current = null;
+
+function show(td) {
+  current = td;
+  const planned = td.dataset.planned === "1";
+  pop.innerHTML = "";
+  const add = (tag, text) => { const el = document.createElement(tag); el.textContent = text; pop.appendChild(el); return el; };
+  add("b", td.dataset.title);
+  add("div", td.dataset.dates + " · " + td.dataset.status);
+  add("div", td.dataset.fare).className = "muted";
+  const row = document.createElement("div");
+  row.style.cssText = "display:flex;gap:8px;margin-top:4px";
+  const btn = document.createElement("button");
+  btn.className = "btn"; btn.type = "button";
+  btn.textContent = planned ? "Remove pencil" : "Pencil in";
+  btn.onclick = togglePlan;
+  const link = document.createElement("a");
+  const url = td.dataset.url;
+  link.className = "btn ghost";
+  link.href = url && url.startsWith("https://") ? url : "#";
+  link.target = "_blank"; link.rel = "noopener";
+  link.textContent = "Operator page";
+  row.append(btn, link); pop.appendChild(row);
+  pop.hidden = false;
+  const r = td.getBoundingClientRect();
+  const left = Math.max(8, Math.min(r.left, innerWidth - pop.offsetWidth - 8));
+  const top = r.bottom + 6 + pop.offsetHeight > innerHeight ? r.top - pop.offsetHeight - 6 : r.bottom + 6;
+  pop.style.left = left + "px"; pop.style.top = top + "px";
+}
+
+async function togglePlan() {
+  const td = current;
+  const res = await fetch(`/batches/${td.dataset.id}/plan/`, { method: "POST", headers: { "X-CSRFToken": csrf } });
+  if (!res.ok) return;
+  const { planned } = await res.json();
+  td.dataset.planned = planned ? "1" : "0";
+  td.classList.toggle("planned", planned);
+  show(td);
+}
+
+document.addEventListener("click", e => {
+  const td = e.target.closest("td.b");
+  if (td) { show(td); return; }
+  if (!pop.contains(e.target)) pop.hidden = true;
+});
+document.addEventListener("keydown", e => {
+  if (e.key === "Escape") pop.hidden = true;
+  if (e.key === "Enter" && e.target.matches("td.b")) show(e.target);
+});
+document.addEventListener("scroll", () => { pop.hidden = true; }, true);
+</script>
+{% endblock %}

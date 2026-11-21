@@ -1,0 +1,892 @@
+{% extends "treks/explore_base.html" %}
+{% block title %}Which hike next?{% endblock %}
+{% block head %}
+<style>
+/* header */
+.site-title{font:800 40px/1 'Big Shoulders Display','Arial Narrow',sans-serif;color:var(--text)}
+.site-title svg{vertical-align:middle;margin-left:6px}
+.kicker{color:var(--muted);font-size:13px;margin-top:4px}
+
+/* search question */
+.question{font:600 26px/1.2 'Big Shoulders Display','Arial Narrow',sans-serif;color:var(--text);margin-bottom:12px}
+.question em{font-style:normal;font-weight:800;color:var(--accent)}
+
+/* month ridge */
+.ridge-wrap{margin:12px 0 8px;position:relative}
+.ridge-btn{background:none;border:none;padding:0;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:2px}
+.ridge-count{font:500 11px 'Work Sans',system-ui,sans-serif;color:var(--muted)}
+.ridge-label{font:400 11px 'Work Sans',system-ui,sans-serif;color:var(--muted)}
+
+/* results heading */
+.results-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px;justify-content:space-between}
+.results-head h2{font:600 22px 'Big Shoulders Display','Arial Narrow',sans-serif;color:var(--text)}
+.results-caption{color:var(--muted);font-size:12px;line-height:1.4}
+
+/* range chart */
+.chart-wrap{position:relative;margin:8px 0}
+.chart-wrap svg{width:100%;display:block}
+
+/* legend */
+.legend{display:flex;gap:14px;font-size:12px;color:var(--muted);flex-wrap:wrap;align-items:center}
+.legend-swatch{width:12px;height:12px;border-radius:3px;display:inline-block;margin-right:4px;vertical-align:middle}
+
+/* flight toggle */
+.flight-toggle{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted);margin-left:auto}
+.flight-toggle input{accent-color:var(--accent)}
+
+/* card stack */
+.card-stack{display:flex;flex-direction:column;gap:12px}
+.clear-btn{align-self:flex-end;font:500 13px 'Work Sans',system-ui,sans-serif;color:var(--muted);cursor:pointer;background:none;border:1px solid var(--line);border-radius:999px;padding:4px 12px}
+.clear-btn:hover{color:var(--accent);border-color:var(--accent)}
+
+/* trek card innards */
+.card-header{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:baseline;gap:4px}
+.card-name{font:800 24px/1.1 'Big Shoulders Display','Arial Narrow',sans-serif;color:var(--ink)}
+.card-region{font:400 13px 'Work Sans',system-ui,sans-serif;color:var(--ink-2)}
+.card-profile{margin:10px 0}
+.card-profile svg{width:100%;display:block}
+.card-stats{display:flex;gap:16px;margin:8px 0}
+.card-stat{display:flex;flex-direction:column}
+.card-stat-val{font:600 15px 'Work Sans',system-ui,sans-serif;font-variant-numeric:tabular-nums}
+.card-stat-lab{font:400 11px 'Work Sans',system-ui,sans-serif;color:var(--ink-2)}
+.level-note{font-size:13px;color:var(--ink-2);margin:4px 0 8px}
+
+/* month strip on card */
+.month-strip{display:flex;gap:2px;margin:8px 0}
+.month-cell{width:100%;height:22px;border-radius:3px;background:var(--line);display:flex;align-items:center;justify-content:center;font:500 10px 'Work Sans',system-ui,sans-serif;color:var(--muted);transition:transform .15s}
+.month-cell.has-dep{background:var(--sun-3);color:var(--sun);cursor:pointer}
+.month-cell.has-dep:hover{transform:scaleY(1.15)}
+.month-cell.in-search{background:var(--sun);color:#fff;cursor:pointer}
+.month-cell.in-search:hover{transform:scaleY(1.15)}
+.month-cell.best-no-dep{border:1px dashed var(--sun-2);background:transparent;color:var(--sun-2)}
+.month-cell.expanded{outline:2px solid var(--accent);outline-offset:-1px}
+
+/* date grid */
+.date-grid{margin:6px 0;overflow-x:auto}
+.date-grid table{border-collapse:collapse;width:100%;min-width:280px}
+.date-grid th,.date-grid td{padding:3px 2px;text-align:center;font:500 10px 'Work Sans',system-ui,sans-serif}
+.date-grid th{color:var(--ink-2);font-weight:400}
+.date-grid .op-label{text-align:left;font-weight:600;color:var(--ink);padding-right:6px;white-space:nowrap}
+.dep-dot{width:20px;height:18px;border-radius:3px;display:inline-block;cursor:default;position:relative}
+.dep-dot.open{background:var(--fill);opacity:0.9}
+.dep-dot.wait{background:#e6a817;opacity:0.8}
+.dep-dot.full{background:#c0392b;opacity:0.65}
+.dep-dot.none{background:var(--line)}
+.dep-dot[title]{cursor:help}
+.date-grid-legend{display:flex;gap:10px;font:400 10px 'Work Sans',system-ui,sans-serif;color:var(--ink-2);margin-top:4px}
+.date-grid-legend i{width:10px;height:10px;border-radius:2px;display:inline-block;vertical-align:middle;margin-right:3px}
+
+/* operators on card */
+.card-ops{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.card-op{font:500 11px 'Work Sans',system-ui,sans-serif;color:var(--ink-2);background:rgba(0,0,0,.06);border-radius:4px;padding:2px 6px}
+
+/* empty state */
+.empty-state{border:2px dashed var(--line);border-radius:16px;padding:32px 16px;text-align:center;color:var(--muted)}
+
+/* booking type badges */
+.card-booking{display:inline-flex;align-items:center;gap:4px;font:500 11px 'Work Sans',system-ui,sans-serif;border-radius:4px;padding:2px 8px}
+.card-booking.scheduled{background:#e0f0e0;color:#2d6a4f}
+.card-booking.govt_portal{background:#fef3cd;color:#856404}
+.card-booking.local{background:#e8e8e4;color:#555}
+.portal-cta{display:inline-block;margin-top:6px;font:600 12px 'Work Sans',system-ui,sans-serif;color:var(--accent);text-decoration:underline;cursor:pointer}
+
+/* responsive filter tiles */
+@media (max-width:640px){.tiles{grid-template-columns:1fr 1fr 1fr!important}}
+@media (max-width:420px){.tiles{grid-template-columns:1fr 1fr!important}}
+
+/* footer */
+footer{text-align:center;color:var(--muted);font-size:12px}
+footer a{color:var(--muted)}
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- 1. Header -->
+<header>
+  <div class="site-title">Which hike next?
+    <svg width="44" height="48" viewBox="0 0 44 48" aria-hidden="true" style="vertical-align:middle;margin-left:8px">
+      <!-- face -->
+      <circle cx="20" cy="28" r="14" fill="var(--face)"/>
+      <!-- bucket hat brim -->
+      <ellipse cx="20" cy="17" rx="18" ry="4" fill="var(--hat)"/>
+      <!-- hat crown -->
+      <path d="M8 17 Q8 6 20 6 Q32 6 32 17" fill="var(--hat)"/>
+      <!-- hat band -->
+      <path d="M8 17 L32 17" stroke="var(--ink)" stroke-width="0.8" opacity="0.3"/>
+      <!-- eyes -->
+      <ellipse cx="15" cy="26" rx="2" ry="2.2" fill="var(--ink)"/>
+      <ellipse cx="25" cy="26" rx="2" ry="2.2" fill="var(--ink)"/>
+      <!-- raised brows -->
+      <path d="M12 22.5 Q15 21 18 22.5" fill="none" stroke="var(--ink)" stroke-width="1.2" stroke-linecap="round"/>
+      <path d="M22 22.5 Q25 21 28 22.5" fill="none" stroke="var(--ink)" stroke-width="1.2" stroke-linecap="round"/>
+      <!-- thinking mouth: slight side frown -->
+      <path d="M17 34 Q20 32.5 24 34" fill="none" stroke="var(--ink)" stroke-width="1.4" stroke-linecap="round"/>
+      <!-- hand on chin -->
+      <circle cx="16" cy="37.5" r="2.5" fill="var(--face)" stroke="var(--ink)" stroke-width="0.8"/>
+      <circle cx="19" cy="38.5" r="1.8" fill="var(--face)" stroke="var(--ink)" stroke-width="0.6"/>
+      <!-- ? floating -->
+      <text x="36" y="14" fill="var(--accent)" font-family="'Big Shoulders Display',sans-serif" font-size="16" font-weight="800">?</text>
+    </svg>
+  </div>
+  <p class="kicker">116 treks across India and Nepal — Himalayas to Sahyadris, operators to DIY.</p>
+</header>
+
+<!-- 2. Filter box -->
+<section class="panel" aria-label="Filters">
+  <div class="question" id="question" aria-live="polite">What can I do <em>next spring</em>?</div>
+
+  <div class="chips" id="season-chips" role="group" aria-label="Seasons">
+    <button class="chip" data-months="3,4,5">Spring</button>
+    <button class="chip" data-months="6,7,8,9">Summer</button>
+    <button class="chip" data-months="10,11">Autumn</button>
+    <button class="chip" data-months="12,1,2">Winter</button>
+    <button class="chip" data-months="">Any time</button>
+  </div>
+
+  <div class="ridge-wrap" id="ridge-wrap" aria-label="Month filter"></div>
+
+  <div class="tiles" style="grid-template-columns:1fr 1fr 1fr 1fr 1fr">
+    <div class="tile">
+      <label for="sel-region">Region</label>
+      <select id="sel-region"><option value="all">Anywhere</option></select>
+    </div>
+    <div class="tile">
+      <label for="sel-days">Days</label>
+      <select id="sel-days">
+        <option value="any">Any</option>
+        <option value="1">Day trip</option>
+        <option value="2-3">Weekend</option>
+        <option value="4-6">Short</option>
+        <option value="7-9">Week+</option>
+        <option value="10+">Expedition</option>
+      </select>
+    </div>
+    <div class="tile">
+      <label for="sel-level">Level</label>
+      <select id="sel-level">
+        <option value="any">Any</option>
+        <option value="1">Easy</option>
+        <option value="2">Moderate</option>
+        <option value="3">Hard</option>
+      </select>
+    </div>
+    <div class="tile">
+      <label for="sel-budget">Budget</label>
+      <select id="sel-budget">
+        <option value="any">Any</option>
+        <option value="5k">Under ₹5K</option>
+        <option value="15k">Under ₹15K</option>
+        <option value="30k">Under ₹30K</option>
+        <option value="30k+">₹30K+</option>
+      </select>
+    </div>
+    <div class="tile">
+      <label for="sel-type">Type</label>
+      <select id="sel-type">
+        <option value="any">All</option>
+        <option value="scheduled">Operator-led</option>
+        <option value="govt_portal">Govt portal</option>
+        <option value="local">Local / self</option>
+      </select>
+    </div>
+  </div>
+</section>
+
+<!-- 4. Results heading + chart -->
+<section aria-label="Results">
+  <div class="results-head">
+    <h2 id="results-count"></h2>
+    <div class="legend" id="legend">
+      <span><i class="legend-swatch" style="background:var(--sun-3)"></i>Easy</span>
+      <span><i class="legend-swatch" style="background:var(--sun-2)"></i>Moderate</span>
+      <span><i class="legend-swatch" style="background:var(--sun)"></i>Hard</span>
+      <label class="flight-toggle"><input type="checkbox" id="flight-toggle"> Show $$</label>
+    </div>
+  </div>
+  <p class="results-caption">Each ridge is a region; each peak a trek. Height is altitude, width is duration. Tap a peak.</p>
+  <div class="chart-wrap" id="chart-wrap"></div>
+</section>
+
+<!-- 5. Trek cards -->
+<section class="card-stack" id="card-stack" aria-label="Trek details">
+  <button class="clear-btn" id="clear-cards" hidden>Clear all</button>
+</section>
+
+<!-- 6. Empty state -->
+<div class="empty-state" id="empty-state" hidden>
+  No departures match that search. Try another month or region.
+  <div style="margin-top:12px"><button class="chip" id="reset-all">Show everything</button></div>
+</div>
+
+<!-- 7. Footer -->
+<footer>
+  {% if last_refresh %}Updated from operator sites {{ last_refresh }}{% else %}Not refreshed yet{% endif %}
+  · <a href="{% url 'admin:index' %}">Admin</a>
+</footer>
+{% endblock %}
+
+{% block scripts %}
+{{ treks_json|json_script:"treks-data" }}
+<script>
+(function(){
+"use strict";
+
+const TREKS = JSON.parse(document.getElementById("treks-data").textContent);
+function esc(s){const d=document.createElement("div");d.textContent=s;return d.innerHTML;}
+const MONTH_NAMES = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const MONTH_LETTERS = ["J","F","M","A","M","J","J","A","S","O","N","D"];
+const LEVEL_LABELS = {1:"Easy",2:"Moderate",3:"Hard"};
+const LEVEL_BADGES = {1:"Easy going",2:"Moderate effort",3:"Demanding"};
+const LEVEL_COLORS = {1:"var(--sun-3)",2:"var(--sun-2)",3:"var(--sun)"};
+const BOOKING_LABELS = {"scheduled":"Operator-led","govt_portal":"Govt portal","local":"Local / self"};
+const SEASON_MAP = {"3,4,5":"next spring","6,7,8,9":"this summer","10,11":"this autumn","1,2,12":"this winter"};
+
+// State
+let state = {
+  months: new Set([3,4,5]),
+  region: "all",
+  dur: "any",
+  level: "any",
+  budget: "any",
+  bookingType: "any",
+  focus: null,
+  selected: [],
+  showFlights: false,
+};
+const cardExpandedMonths = {};  // trekId -> expanded month number (or null)
+
+// Map raw region to dropdown category
+const DROPDOWN_REGION = {
+  "Uttarakhand": "Uttarakhand",
+  "Himachal Pradesh": "Himachal Pradesh",
+  "Jammu & Kashmir": "Kashmir & Ladakh",
+  "Ladakh": "Kashmir & Ladakh",
+  "Sikkim": "Sikkim & NE",
+  "West Bengal": "Sikkim & NE",
+  "Nagaland / Manipur": "Sikkim & NE",
+  "Meghalaya": "Sikkim & NE",
+  "Maharashtra": "Maharashtra",
+  "Karnataka": "Karnataka",
+  "Goa / Karnataka": "Karnataka",
+  "Kerala": "Kerala",
+  "Tamil Nadu": "Tamil Nadu",
+  "Madhya Pradesh": "Central India",
+  "Chhattisgarh": "Central India",
+  "Rajasthan": "Central India",
+  "Gujarat": "Central India",
+  "Odisha": "Central India",
+  "Jharkhand": "Central India",
+  "Khumbu": "Nepal",
+  "Solukhumbu": "Nepal",
+  "Annapurna": "Nepal",
+  "Mustang": "Nepal",
+  "Gorkha": "Nepal",
+  "Langtang": "Nepal",
+  "Far East": "Nepal",
+  "East": "Nepal",
+  "West": "Nepal",
+  "Far West": "Nepal",
+};
+function dropdownRegion(t) { return DROPDOWN_REGION[t.region] || t.region; }
+
+// Populate regions dropdown from mapped categories
+const REGION_ORDER = [
+  "Uttarakhand", "Himachal Pradesh", "Kashmir & Ladakh", "Sikkim & NE",
+  "Maharashtra", "Karnataka", "Kerala", "Tamil Nadu",
+  "Central India", "Nepal",
+];
+const regionSet = new Set(TREKS.map(dropdownRegion));
+const selRegion = document.getElementById("sel-region");
+REGION_ORDER.filter(r => regionSet.has(r)).forEach(r => {
+  const o = document.createElement("option");
+  o.value = r; o.textContent = r;
+  selRegion.appendChild(o);
+});
+
+// --- Matching ---
+function matches(t) {
+  if (state.months.size > 0 && !t.months.some(m => state.months.has(m))) return false;
+  if (state.region !== "all" && dropdownRegion(t) !== state.region) return false;
+  const dMax = t.days_max || t.days;
+  const dMin = t.days_min || t.days;
+  if (state.dur === "1" && dMin > 1) return false;
+  if (state.dur === "2-3" && (dMin > 3 || dMax < 2)) return false;
+  if (state.dur === "4-6" && (dMin > 6 || dMax < 4)) return false;
+  if (state.dur === "7-9" && (dMin > 9 || dMax < 7)) return false;
+  if (state.dur === "10+" && dMax < 10) return false;
+  if (state.level !== "any" && t.level !== +state.level) return false;
+  const cMax = t.cost_max;
+  if (state.budget === "5k" && (cMax == null || cMax > 5000)) return false;
+  if (state.budget === "15k" && (cMax == null || cMax > 15000)) return false;
+  if (state.budget === "30k" && (cMax == null || cMax > 30000)) return false;
+  if (state.budget === "30k+" && (cMax != null && cMax <= 30000)) return false;
+  if (state.bookingType !== "any" && t.booking !== state.bookingType) return false;
+  return true;
+}
+
+function filtered() { return TREKS.filter(matches); }
+
+// --- Render ---
+function render() {
+  renderQuestion();
+  renderSeasonChips();
+  renderRidge();
+  renderResults();
+  renderChart();
+  renderCards();
+}
+
+function renderQuestion() {
+  const el = document.getElementById("question");
+  let when = "any time of year";
+  const mArr = [...state.months].sort((a,b)=>a-b);
+  const key = mArr.join(",");
+  if (SEASON_MAP[key]) when = SEASON_MAP[key];
+  else if (mArr.length === 1) when = "in " + MONTH_NAMES[mArr[0]-1];
+  else if (mArr.length > 0 && mArr.length < 12) when = "in " + mArr.map(m=>MONTH_NAMES[m-1]).join(", ");
+
+  let where = "";
+  if (state.region !== "all") where = " in " + esc(state.region);
+  el.innerHTML = `What can I do <em>${esc(when)}${where}</em>?`;
+}
+
+function renderSeasonChips() {
+  const chips = document.querySelectorAll("#season-chips .chip");
+  const mArr = [...state.months].sort((a,b)=>a-b).join(",");
+  chips.forEach(c => {
+    const cm = c.dataset.months;
+    const match = cm === "" ? state.months.size === 0 : cm === mArr;
+    c.setAttribute("aria-pressed", match ? "true" : "false");
+    c.classList.toggle("active", match);
+  });
+}
+
+function renderRidge() {
+  const wrap = document.getElementById("ridge-wrap");
+  // Count treks per month (excluding month filter itself)
+  const counts = new Array(12).fill(0);
+  TREKS.forEach(t => {
+    // apply all filters except months
+    if (state.region !== "all" && dropdownRegion(t) !== state.region) return;
+    const dMax = t.days_max || t.days, dMin = t.days_min || t.days;
+    if (state.dur === "1" && dMin > 1) return;
+    if (state.dur === "2-3" && (dMin > 3 || dMax < 2)) return;
+    if (state.dur === "4-6" && (dMin > 6 || dMax < 4)) return;
+    if (state.dur === "7-9" && (dMin > 9 || dMax < 7)) return;
+    if (state.dur === "10+" && dMax < 10) return;
+    if (state.level !== "any" && t.level !== +state.level) return;
+    const cMax = t.cost_max;
+    if (state.budget === "5k" && (cMax == null || cMax > 5000)) return;
+    if (state.budget === "15k" && (cMax == null || cMax > 15000)) return;
+    if (state.budget === "30k" && (cMax == null || cMax > 30000)) return;
+    if (state.budget === "30k+" && (cMax != null && cMax <= 30000)) return;
+    if (state.bookingType !== "any" && t.booking !== state.bookingType) return;
+    t.months.forEach(m => counts[m-1]++);
+  });
+  const maxC = Math.max(...counts, 1);
+
+  const W = 360, H = 100, margin = 10;
+  const step = (W - margin*2) / 11;
+  let svg = `<svg viewBox="0 0 ${W} ${H}" style="width:100%">`;
+
+  // Draw peaks back to front (unselected first, selected on top)
+  for (let pass = 0; pass < 2; pass++) {
+    for (let i = 0; i < 12; i++) {
+      const sel = state.months.has(i+1);
+      if ((pass === 0 && sel) || (pass === 1 && !sel)) continue;
+      const x = margin + i * step;
+      const h = counts[i] > 0 ? 10 + (counts[i] / maxC) * 55 : 0;
+      if (h === 0) continue;
+      const baseY = H - 18;
+      const fill = sel ? "var(--sun)" : "var(--fill-off)";
+      svg += `<polygon points="${x-step/2.2},${baseY} ${x},${baseY-h} ${x+step/2.2},${baseY}" fill="${fill}" stroke="var(--bg)" stroke-width="1"/>`;
+    }
+  }
+
+  // Labels and counts
+  for (let i = 0; i < 12; i++) {
+    const x = margin + i * step;
+    const baseY = H - 18;
+    const h = 10 + (counts[i] / maxC) * 55;
+    const sel = state.months.has(i+1);
+    const col = sel ? "var(--sun)" : "var(--muted)";
+    if (counts[i] > 0) svg += `<text x="${x}" y="${baseY-h-4}" text-anchor="middle" fill="${col}" font-size="10" font-family="Work Sans,system-ui">${counts[i]}</text>`;
+    svg += `<text x="${x}" y="${H-4}" text-anchor="middle" fill="${col}" font-size="10" font-family="Work Sans,system-ui">${MONTH_NAMES[i].charAt(0)}</text>`;
+    // invisible click target
+    svg += `<rect x="${x-step/2}" y="0" width="${step}" height="${H}" fill="transparent" data-month="${i+1}" style="cursor:pointer" role="button" tabindex="0" aria-label="${MONTH_NAMES[i]}, ${counts[i]} treks" aria-pressed="${sel}"/>`;
+  }
+  svg += `</svg>`;
+  wrap.innerHTML = svg;
+
+  // Click handlers
+  wrap.querySelectorAll("rect[data-month]").forEach(r => {
+    const handler = () => {
+      const m = +r.dataset.month;
+      if (state.months.size === 1 && state.months.has(m)) {
+        state.months.clear();
+      } else {
+        state.months = new Set([m]);
+      }
+      state.focus = null;
+      state.selected = [];
+      render();
+    };
+    r.addEventListener("click", handler);
+    r.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handler(); }});
+  });
+}
+
+function renderResults() {
+  const f = filtered();
+  const el = document.getElementById("results-count");
+  el.textContent = f.length === 1 ? "1 trek fits" : `${f.length} treks fit`;
+  document.getElementById("empty-state").hidden = f.length > 0;
+  document.getElementById("chart-wrap").style.display = f.length > 0 ? "" : "none";
+  document.getElementById("card-stack").style.display = f.length > 0 ? "" : "none";
+}
+
+// Five geographic ridges
+const REGION_GROUPS = {
+  "Uttarakhand": "Him. West",
+  "Himachal Pradesh": "Him. West",
+  "Jammu & Kashmir": "Him. West",
+  "Ladakh": "Him. West",
+  "Sikkim": "Him. East & Nep.",
+  "West Bengal": "Him. East & Nep.",
+  "Nagaland / Manipur": "Him. East & Nep.",
+  "Meghalaya": "Him. East & Nep.",
+  "Khumbu": "Him. East & Nep.",
+  "Solukhumbu": "Him. East & Nep.",
+  "Annapurna": "Him. East & Nep.",
+  "Mustang": "Him. East & Nep.",
+  "Gorkha": "Him. East & Nep.",
+  "Langtang": "Him. East & Nep.",
+  "Far East": "Him. East & Nep.",
+  "East": "Him. East & Nep.",
+  "West": "Him. East & Nep.",
+  "Far West": "Him. East & Nep.",
+  "Maharashtra": "Western Ghats",
+  "Karnataka": "Western Ghats",
+  "Goa / Karnataka": "Western Ghats",
+  "Kerala": "Western Ghats",
+  "Tamil Nadu": "S. India",
+  "Madhya Pradesh": "Rest",
+  "Chhattisgarh": "Rest",
+  "Rajasthan": "Rest",
+  "Gujarat": "Rest",
+  "Odisha": "Rest",
+  "Jharkhand": "Rest",
+};
+const RIDGE_ORDER = [
+  "Him. West",
+  "Him. East & Nep.",
+  "Western Ghats",
+  "S. India",
+  "Rest",
+];
+function ridgeGroup(t) { return REGION_GROUPS[t.region] || "Rest"; }
+
+function renderChart() {
+  const f = filtered();
+  if (!f.length) return;
+
+  // Group treks into ridges
+  const ridgeMap = {};
+  f.forEach(t => {
+    const g = ridgeGroup(t);
+    if (!ridgeMap[g]) ridgeMap[g] = [];
+    ridgeMap[g].push(t);
+  });
+  const ridges = RIDGE_ORDER.filter(g => ridgeMap[g]);
+  if (!ridges.length) return;
+
+  // Layout constants
+  const labelW = 88;            // left margin for labels
+  const W = 600;
+  const rowH = 48;             // baseline-to-baseline distance between ridges
+  const maxPeakH = 42;         // tallest peak height in a row
+  const padTop = maxPeakH + 6; // room for the tallest peak in the first row
+  const padBot = 8;
+  const H = padTop + ridges.length * rowH + padBot;
+  const peakW = W - labelW;
+
+  // Global altitude range for consistent scaling
+  const allAlts = f.map(t => t.alt);
+  const minAlt = 0, maxAlt = Math.max(...allAlts, 6500);
+
+  let svg = `<svg viewBox="0 0 ${W} ${H}" style="width:100%" aria-label="Ridgeline chart of treks">`;
+
+  // Draw ridges from bottom to top so higher rows overlap lower ones
+  for (let ri = ridges.length - 1; ri >= 0; ri--) {
+    const group = ridges[ri];
+    const treks = ridgeMap[group];
+    const baseY = padTop + ri * rowH;
+
+    // Sort by altitude descending so shorter peaks draw in front
+    treks.sort((a,b) => b.alt - a.alt);
+
+    // Space peaks evenly across the row width
+    const n = treks.length;
+    const spacing = n > 1 ? peakW / (n + 1) : peakW / 2;
+
+    // Assign x positions
+    treks.forEach((t, i) => {
+      t._rx = labelW + (n > 1 ? spacing * (i + 1) : peakW / 2);
+    });
+
+    // Ridgeline baseline
+    svg += `<line x1="${labelW}" y1="${baseY}" x2="${W}" y2="${baseY}" stroke="var(--line)" stroke-width="0.5"/>`;
+
+    // Region label
+    svg += `<text x="${labelW - 6}" y="${baseY + 1}" text-anchor="end" fill="var(--muted)" font-size="10.5" font-family="Work Sans,system-ui" font-weight="500">${esc(group)}</text>`;
+
+    // Draw peaks (tallest first → at the back)
+    treks.forEach(t => {
+      const x = t._rx;
+      const normAlt = (t.alt - minAlt) / (maxAlt - minAlt);
+      const peakH = 4 + normAlt * maxPeakH;
+      const peakY = baseY - peakH;
+      const halfW = Math.max(6, 3.5 + (t.days_max || t.days) * 1.6);
+      const isFocused = state.selected.includes(t.id) || state.focus === t.id;
+      const fill = LEVEL_COLORS[t.level];
+
+      // Smooth mountain shape
+      const lBase = x - halfW;
+      const rBase = x + halfW;
+      const lRidge = x - halfW * 0.35;
+      const rRidge = x + halfW * 0.4;
+      const midY = baseY - peakH * 0.45;
+
+      const path = `M${lBase},${baseY} Q${lRidge},${midY} ${x},${peakY} Q${rRidge},${midY} ${rBase},${baseY} Z`;
+      svg += `<path d="${path}" fill="${fill}" stroke="var(--bg)" stroke-width="0.6" opacity="${isFocused ? 1 : 0.75}"/>`;
+
+      if (isFocused) {
+        svg += `<path d="${path}" fill="none" stroke="var(--text)" stroke-width="1.4"/>`;
+      }
+
+      // $$ for expensive flights
+      if (state.showFlights && t.expensive) {
+        svg += `<text x="${x}" y="${peakY - 2}" text-anchor="middle" fill="var(--accent)" font-size="7" font-family="Work Sans,system-ui" font-weight="700">$$</text>`;
+      }
+
+      // Label on focused peak
+      if (t.id === state.focus) {
+        const label = `${esc(t.name)} · ${formatAlt(t.alt)}`;
+        const labelY = Math.max(8, peakY - 4);
+        const labelX = Math.max(labelW + 20, Math.min(x, W - 30));
+        svg += `<text x="${labelX}" y="${labelY}" text-anchor="middle" fill="var(--text)" font-size="7.5" font-family="Work Sans,system-ui" font-weight="600" stroke="var(--bg)" stroke-width="2.5" paint-order="stroke">${label}</text>`;
+      }
+
+      // Click target
+      svg += `<path d="${path}" fill="transparent" data-trek="${t.id}" style="cursor:pointer" role="button" tabindex="0" aria-label="${esc(t.name)}, ${formatAlt(t.alt)}, ${t.days} days"/>`;
+    });
+  }
+
+  svg += `</svg>`;
+  document.getElementById("chart-wrap").innerHTML = svg;
+
+  // Click handlers
+  document.querySelectorAll("#chart-wrap path[data-trek]").forEach(el => {
+    const handler = () => toggleSelect(+el.dataset.trek);
+    el.addEventListener("click", handler);
+    el.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handler(); }});
+  });
+
+  if (!state.focus && state.selected.length === 0 && f.length > 0) {
+    state.focus = f.reduce((a,b) => a.alt > b.alt ? a : b).id;
+  }
+}
+
+function toggleSelect(id) {
+  const idx = state.selected.indexOf(id);
+  if (idx >= 0) {
+    state.selected.splice(idx, 1);
+    state.focus = state.selected.length > 0 ? state.selected[0] : null;
+  } else {
+    state.selected.unshift(id);
+    state.focus = id;
+  }
+  render();
+  // Scroll to the card
+  const card = document.getElementById("card-" + id);
+  if (card) card.scrollIntoView({behavior: "smooth", block: "nearest"});
+}
+
+function renderCards() {
+  const stack = document.getElementById("card-stack");
+  const clearBtn = document.getElementById("clear-cards");
+
+  // Remove old cards
+  stack.querySelectorAll(".trek-card").forEach(c => c.remove());
+
+  // Determine which cards to show
+  let showIds = [...state.selected];
+  if (showIds.length === 0 && state.focus) showIds = [state.focus];
+
+  clearBtn.hidden = showIds.length <= 1;
+
+  const f = filtered();
+  const trekMap = {};
+  f.forEach(t => trekMap[t.id] = t);
+
+  showIds.forEach(id => {
+    const t = trekMap[id];
+    if (!t) return;
+    const card = document.createElement("div");
+    card.className = "trek-card" + (id === state.focus ? " focused" : "");
+    card.id = "card-" + id;
+    card.innerHTML = buildCardHTML(t);
+    stack.appendChild(card);
+  });
+
+  // Attach month-cell click handlers for date grid expansion
+  stack.querySelectorAll("[data-expand-month]").forEach(el => {
+    el.addEventListener("click", e => {
+      e.stopPropagation();
+      const trekId = +el.dataset.trekId;
+      const m = +el.dataset.expandMonth;
+      if (cardExpandedMonths[trekId] === m) {
+        delete cardExpandedMonths[trekId];
+      } else {
+        cardExpandedMonths[trekId] = m;
+      }
+      renderCards();
+    });
+  });
+}
+
+function buildCardHTML(t) {
+  let html = "";
+
+  // Header
+  html += `<div class="card-header">`;
+  html += `<span class="card-name">${esc(t.name)}</span>`;
+  html += `<span class="card-region">${esc(t.region)}</span>`;
+  html += `</div>`;
+
+  // Profile
+  html += `<div class="card-profile">${buildProfileSVG(t)}</div>`;
+
+  // Stats
+  const daysLabel = (t.days_min && t.days_max && t.days_min !== t.days_max)
+    ? `${t.days_min}–${t.days_max}` : `${t.days}`;
+  const costLabel = t.cost_max
+    ? (t.cost_min && t.cost_min !== t.cost_max
+        ? `₹${(t.cost_min/1000).toFixed(0)}K–${(t.cost_max/1000).toFixed(0)}K`
+        : (t.cost_max === 0 ? "Free" : `~₹${(t.cost_max/1000).toFixed(0)}K`))
+    : "Varies";
+  html += `<div class="card-stats">`;
+  html += `<div class="card-stat"><span class="card-stat-val">${daysLabel}</span><span class="card-stat-lab">Days</span></div>`;
+  html += `<div class="card-stat"><span class="card-stat-val">${formatAlt(t.alt)}</span><span class="card-stat-lab">Highest point</span></div>`;
+  html += `<div class="card-stat"><span class="card-stat-val">${LEVEL_LABELS[t.level]}</span><span class="card-stat-lab">Level</span></div>`;
+  html += `<div class="card-stat"><span class="card-stat-val">${costLabel}</span><span class="card-stat-lab">Cost/person</span></div>`;
+  if (t.deps > 0) html += `<div class="card-stat"><span class="card-stat-val">${t.deps}</span><span class="card-stat-lab">Departures</span></div>`;
+  html += `</div>`;
+
+  // Booking type badge + trek description
+  html += `<div style="display:flex;align-items:center;gap:8px;margin:4px 0">`;
+  html += `<span class="card-booking ${t.booking}">${esc(BOOKING_LABELS[t.booking] || t.booking)}</span>`;
+  if (t.starting_point) html += `<span style="font-size:11px;color:var(--ink-2)">from ${esc(t.starting_point)}</span>`;
+  html += `</div>`;
+  html += `<div class="level-note">${esc(t.note || LEVEL_BADGES[t.level])}</div>`;
+  if (t.booking === "govt_portal" && t.portal_url) {
+    html += `<a class="portal-cta" href="${esc(t.portal_url)}" target="_blank" rel="noopener">Check availability on the official portal ↗</a>`;
+  }
+
+  // Month strip — uses dep_months (actual departures) for highlighting
+  const depMonths = new Set(t.dep_months || []);
+  const bestMonths = new Set(t.months);
+  const expandedMonth = cardExpandedMonths[t.id] || null;
+  html += `<div class="month-strip" aria-label="Departures by month">`;
+  for (let m = 1; m <= 12; m++) {
+    const hasDep = depMonths.has(m);
+    const isBest = bestMonths.has(m);
+    const inSearch = state.months.has(m);
+    let cls = "month-cell";
+    if (hasDep && inSearch) cls += " in-search";
+    else if (hasDep) cls += " has-dep";
+    else if (isBest) cls += " best-no-dep";
+    if (m === expandedMonth) cls += " expanded";
+    const clickAttr = hasDep ? ` data-expand-month="${m}" data-trek-id="${t.id}"` : "";
+    html += `<div class="${cls}"${clickAttr}>${MONTH_LETTERS[m-1]}</div>`;
+  }
+  html += `</div>`;
+
+  // Date grid for expanded month
+  if (expandedMonth && t.op_deps && t.op_deps[String(expandedMonth)]) {
+    html += buildDateGrid(t, expandedMonth);
+  }
+
+  // Operators
+  html += `<div class="card-ops">`;
+  t.ops.forEach(op => {
+    html += `<span class="card-op">${esc(op.short)} · ${esc(op.name)}</span>`;
+  });
+  html += `</div>`;
+
+  return html;
+}
+
+function buildProfileSVG(t) {
+  const W = 300, H = 58;
+  const minAlt = 500, maxAlt = 6000;
+  const padL = 4, padR = 4, padT = 4, padB = 10;
+  const chartW = W - padL - padR;
+  const chartH = H - padT - padB;
+
+  const pts = t.profile.map((alt, i) => {
+    const x = padL + (t.profile.length > 1 ? (i / (t.profile.length - 1)) * chartW : chartW/2);
+    const y = padT + chartH - ((alt - minAlt) / (maxAlt - minAlt)) * chartH;
+    return [x, y];
+  });
+
+  const lineStr = pts.map(p => p.join(",")).join(" ");
+  const areaStr = `${padL},${padT+chartH} ${lineStr} ${padL + chartW},${padT+chartH}`;
+
+  // 4000m reference
+  const refY = padT + chartH - ((4000 - minAlt) / (maxAlt - minAlt)) * chartH;
+
+  let svg = `<svg viewBox="0 0 ${W} ${H}" aria-hidden="true">`;
+  svg += `<polygon points="${areaStr}" fill="var(--sun-3)" opacity="0.5"/>`;
+  svg += `<polyline points="${lineStr}" fill="none" stroke="var(--ink)" stroke-width="1.6"/>`;
+  svg += `<line x1="${padL}" y1="${refY}" x2="${padL+chartW}" y2="${refY}" stroke="var(--ink)" stroke-width="0.5" stroke-dasharray="4,3" opacity="0.4"/>`;
+  svg += `<text x="${padL+chartW-2}" y="${refY-2}" text-anchor="end" fill="var(--ink-2)" font-size="7" font-family="Work Sans,system-ui" opacity="0.6">4,000 m</text>`;
+
+  // Dot on highest point
+  const maxI = t.profile.indexOf(Math.max(...t.profile));
+  if (pts[maxI]) {
+    svg += `<circle cx="${pts[maxI][0]}" cy="${pts[maxI][1]}" r="2.5" fill="var(--ink)"/>`;
+  }
+
+  svg += `</svg>`;
+  return svg;
+}
+
+function buildDateGrid(t, month) {
+  const opsData = t.op_deps[String(month)] || {};
+  const opNames = Object.keys(opsData);
+  if (!opNames.length) return "";
+
+  // Collect all departure days across operators
+  const allDays = new Set();
+  opNames.forEach(op => opsData[op].forEach(b => allDays.add(b.d)));
+  const days = [...allDays].sort((a,b) => a - b);
+
+  let html = `<div class="date-grid"><table><thead><tr><th></th>`;
+  days.forEach(d => { html += `<th>${d}</th>`; });
+  html += `</tr></thead><tbody>`;
+
+  opNames.forEach(op => {
+    const batchMap = {};
+    opsData[op].forEach(b => { batchMap[b.d] = b; });
+    html += `<tr><td class="op-label">${op}</td>`;
+    days.forEach(d => {
+      const b = batchMap[d];
+      if (b) {
+        const cls = b.s === "full" ? "full" : b.s === "wait" ? "wait" : "open";
+        const tip = `${d} ${MONTH_NAMES[month-1]} – ${b.end}`;
+        html += `<td><span class="dep-dot ${cls}" title="${tip}"></span></td>`;
+      } else {
+        html += `<td><span class="dep-dot none"></span></td>`;
+      }
+    });
+    html += `</tr>`;
+  });
+
+  html += `</tbody></table></div>`;
+  html += `<div class="date-grid-legend">`;
+  html += `<span><i style="background:var(--fill);opacity:.9"></i>Open</span>`;
+  html += `<span><i style="background:#e6a817;opacity:.8"></i>Waitlist</span>`;
+  html += `<span><i style="background:#c0392b;opacity:.65"></i>Full</span>`;
+  html += `<span><i style="background:var(--line)"></i>Not offered</span>`;
+  html += `</div>`;
+  return html;
+}
+
+function formatAlt(m) {
+  return m.toLocaleString("en-IN") + " m";
+}
+
+// --- Event handlers ---
+
+// Season chips
+document.querySelectorAll("#season-chips .chip").forEach(c => {
+  c.addEventListener("click", () => {
+    const ms = c.dataset.months;
+    if (ms === "") {
+      state.months.clear();
+    } else {
+      state.months = new Set(ms.split(",").map(Number));
+    }
+    state.focus = null;
+    state.selected = [];
+    render();
+  });
+});
+
+// Dropdowns
+document.getElementById("sel-region").addEventListener("change", e => {
+  state.region = e.target.value;
+  state.focus = null; state.selected = [];
+  render();
+});
+document.getElementById("sel-days").addEventListener("change", e => {
+  state.dur = e.target.value;
+  state.focus = null; state.selected = [];
+  render();
+});
+document.getElementById("sel-level").addEventListener("change", e => {
+  state.level = e.target.value;
+  state.focus = null; state.selected = [];
+  render();
+});
+
+// Budget dropdown
+document.getElementById("sel-budget").addEventListener("change", e => {
+  state.budget = e.target.value;
+  state.focus = null; state.selected = [];
+  render();
+});
+// Booking type dropdown
+document.getElementById("sel-type").addEventListener("change", e => {
+  state.bookingType = e.target.value;
+  state.focus = null; state.selected = [];
+  render();
+});
+// Flight toggle
+document.getElementById("flight-toggle").addEventListener("change", e => {
+  state.showFlights = e.target.checked;
+  render();
+});
+
+// Clear button
+document.getElementById("clear-cards").addEventListener("click", () => {
+  state.selected = [];
+  state.focus = null;
+  render();
+});
+
+// Reset all
+document.getElementById("reset-all").addEventListener("click", () => {
+  state.months.clear();
+  state.region = "all";
+  state.dur = "any";
+  state.level = "any";
+  state.budget = "any";
+  state.bookingType = "any";
+  state.focus = null;
+  state.selected = [];
+  document.getElementById("sel-region").value = "all";
+  document.getElementById("sel-days").value = "any";
+  document.getElementById("sel-level").value = "any";
+  document.getElementById("sel-budget").value = "any";
+  document.getElementById("sel-type").value = "any";
+  render();
+});
+
+// Initial render
+render();
+
+})();
+</script>
+{% endblock %}

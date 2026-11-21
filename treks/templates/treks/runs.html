@@ -1,0 +1,19 @@
+{% extends "treks/base.html" %}
+{% block title %}Refresh Log · Trek Planner{% endblock %}
+{% block content %}
+<form method="post" action="{% url 'treks:refresh' %}" style="display:flex;gap:8px;flex-wrap:wrap">
+  {% csrf_token %}
+  <button class="btn" name="flights" value="1">Refresh all data</button>
+  <button class="btn ghost" name="flights" value="0">Refresh treks only</button>
+</form>
+{% for run in runs %}
+<section class="card">
+  <div><b>{{ run.started_at|date:"j M Y, H:i" }}</b> · {{ run.get_state_display }}
+    · {{ run.batches_seen }} batches ({{ run.batches_new }} new) · {{ run.quotes_fetched }} fares
+    {% if run.finished_at %}<span class="muted">· took {{ run.started_at|timesince:run.finished_at }}</span>{% endif %}</div>
+  <pre style="white-space:pre-wrap;font-size:12.5px;margin:10px 0 0;overflow-x:auto">{{ run.log }}</pre>
+</section>
+{% empty %}
+<p class="muted">No refreshes yet.</p>
+{% endfor %}
+{% endblock %}
