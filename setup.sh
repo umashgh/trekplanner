@@ -85,7 +85,8 @@ python3 "$APP_DIR/manage.py" migrate --no-input
 echo ""
 if [ -f "$APP_DIR/data_dump.json" ]; then
     echo "--- Loading data from data_dump.json ---"
-    python3 "$APP_DIR/manage.py" loaddata "$APP_DIR/data_dump.json"
+    python3 "$APP_DIR/manage.py" loaddata "$APP_DIR/data_dump.json" \
+        --exclude contenttypes --exclude auth.permission
     echo "Data loaded."
 else
     echo "--- No data_dump.json found — starting with empty database ---"
