@@ -79,12 +79,22 @@ def parse_page(html):
     return sorted(out, key=lambda b: b.start)
 
 
+_last_fetch = 0.0
+
+
 def fetch_batches(page_url, sess=None):
+    import time
+    global _last_fetch
+    since = time.monotonic() - _last_fetch
+    if since < 1.5:
+        time.sleep(1.5 - since)
     client = browser_client()
     try:
         r = client.get(page_url)
     except Exception as e:
         raise SourceError(f"Could not reach {page_url}: {e}") from e
+    finally:
+        _last_fetch = time.monotonic()
     if r.status_code != 200:
         raise SourceError(f"{page_url} returned HTTP {r.status_code}")
     return parse_page(r.text)

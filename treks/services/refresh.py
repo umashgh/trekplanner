@@ -1,6 +1,7 @@
 """One refresh: re-read every active operator listing, then price flights."""
 from collections import defaultdict
 from datetime import timedelta
+from difflib import SequenceMatcher
 
 from django.conf import settings
 from django.db import transaction
@@ -12,15 +13,69 @@ from .flights import get_provider
 from .http import SourceError, session
 
 
+def _resolve_ih_ids(listings, sess, run):
+    """Auto-discover and save Indiahikes external_ids for listings that lack them."""
+    missing = [l for l in listings
+               if l.operator.source == Operator.Source.INDIAHIKES and not l.external_id]
+    if not missing:
+        return
+    run.write(f"Discovering Indiahikes trek ids for {len(missing)} listings…")
+    try:
+        ih_map = indiahikes.discover_trek_ids(sess=sess)
+    except Exception as e:
+        run.write(f"✗ IH discovery failed: {e}")
+        return
+    ih_names = {_normalise_name(k): v for k, v in ih_map.items()}
+    for listing in missing:
+        trek_name = listing.trek.name
+        ih_id = _match_ih_name(trek_name, ih_names)
+        if ih_id is not None:
+            listing.external_id = str(ih_id)
+            listing.save(update_fields=["external_id"])
+            run.write(f"  ✓ {trek_name} → IH id {ih_id}")
+        else:
+            run.write(f"  · {trek_name}: no IH match found")
+
+
+def _normalise_name(name):
+    import re
+    s = name.lower().strip()
+    s = re.sub(r"[–—\-]+", " ", s)
+    s = re.sub(r"\s+", " ", s)
+    for suffix in (" trek", " pass trek", " lake trek"):
+        if s.endswith(suffix):
+            s = s[:-len(suffix)]
+    return s.strip()
+
+
+def _match_ih_name(trek_name, ih_names):
+    """Find the best IH match for a trek name. Returns the IH id or None."""
+    norm = _normalise_name(trek_name)
+    if norm in ih_names:
+        return ih_names[norm]
+    for ih_norm, ih_id in ih_names.items():
+        if norm in ih_norm or ih_norm in norm:
+            return ih_id
+    best_ratio, best_id = 0, None
+    for ih_norm, ih_id in ih_names.items():
+        ratio = SequenceMatcher(None, norm, ih_norm).ratio()
+        if ratio > best_ratio:
+            best_ratio, best_id = ratio, ih_id
+    if best_ratio >= 0.7:
+        return best_id
+    return None
+
+
 def run_refresh(include_flights=True):
     run = RefreshRun.objects.create()
     errors = 0
     sess = session()
     try:
-        listings = (OperatorTrek.objects
+        listings = list(OperatorTrek.objects
                     .filter(active=True, trek__active=True, operator__active=True,
                             needs_daily_refresh=True)
                     .select_related("operator", "trek"))
+        _resolve_ih_ids(listings, sess, run)
         hgn_cache = {}
         for listing in listings:
             try:
@@ -61,8 +116,9 @@ def run_refresh(include_flights=True):
 def _fetch_listing(listing, sess, *, hgn_cache=None):
     src = listing.operator.source
     if src == Operator.Source.INDIAHIKES:
+        listing.refresh_from_db(fields=["external_id"])
         if not listing.external_id:
-            raise SourceError("no Indiahikes trek id set (run `manage.py find_ih_ids`)")
+            raise SourceError("no Indiahikes trek id found (trek may not be on Indiahikes)")
         trek_data, batches = indiahikes.fetch_batches(listing.external_id, sess)
         if trek_data.get("duration") and not listing.duration_days:
             listing.duration_days = trek_data["duration"]
