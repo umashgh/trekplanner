@@ -7,7 +7,7 @@ from datetime import date, timedelta
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.admin.views.decorators import staff_member_required
-from django.http import JsonResponse
+from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
@@ -243,6 +243,7 @@ def _fare_for(batch, latest, by_dest_week):
     return min(week, key=lambda q: (abs((q.depart_date - batch.fly_in_date).days), q.price))
 
 
+@staff_member_required
 def calendar_view(request):
     cfg = settings.TREKS
     today = timezone.localdate()
@@ -327,6 +328,7 @@ def runs_view(request):
     return render(request, "treks/runs.html", {"runs": RefreshRun.objects.all()[:20]})
 
 
+@staff_member_required
 @require_POST
 def toggle_plan(request, pk):
     batch = get_object_or_404(Batch, pk=pk)
@@ -392,3 +394,80 @@ def metrics_view(request):
         "by_day": by_day,
         "by_referrer": by_referrer,
     })
+
+
+ROBOTS_TXT = """\
+User-agent: Googlebot
+Allow: /
+Disallow: /admin/
+Disallow: /calendar/
+Disallow: /refresh/
+Disallow: /runs/
+
+User-agent: Bingbot
+Allow: /
+Disallow: /admin/
+Disallow: /calendar/
+Disallow: /refresh/
+Disallow: /runs/
+
+User-agent: *
+Disallow: /admin/
+Disallow: /calendar/
+Disallow: /refresh/
+Disallow: /runs/
+
+User-agent: GPTBot
+Disallow: /
+
+User-agent: ChatGPT-User
+Disallow: /
+
+User-agent: CCBot
+Disallow: /
+
+User-agent: Google-Extended
+Disallow: /
+
+User-agent: anthropic-ai
+Disallow: /
+
+User-agent: ClaudeBot
+Disallow: /
+
+User-agent: Bytespider
+Disallow: /
+
+User-agent: FacebookBot
+Disallow: /
+
+User-agent: Amazonbot
+Disallow: /
+
+User-agent: Applebot-Extended
+Disallow: /
+
+User-agent: PerplexityBot
+Disallow: /
+
+User-agent: Cohere-ai
+Disallow: /
+
+Sitemap: https://treks.freeup.in/sitemap.xml
+"""
+
+
+def robots_txt(request):
+    return HttpResponse(ROBOTS_TXT, content_type="text/plain")
+
+
+def sitemap_xml(request):
+    urls = [
+        ("https://treks.freeup.in/", "weekly", "1.0"),
+    ]
+    xml = ['<?xml version="1.0" encoding="UTF-8"?>']
+    xml.append('<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">')
+    for loc, freq, priority in urls:
+        xml.append(f"  <url><loc>{loc}</loc><changefreq>{freq}</changefreq><priority>{priority}</priority></url>")
+    xml.append("</urlset>")
+    return HttpResponse("\n".join(xml), content_type="application/xml")

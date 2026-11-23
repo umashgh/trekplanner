@@ -4,6 +4,25 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{% block title %}Which hike next?{% endblock %}</title>
+<meta name="description" content="{% block meta_description %}Find Himalayan treks by month, difficulty, and altitude. Compare departure dates and flight prices from operators like Indiahikes and Trek The Himalayas.{% endblock %}">
+<meta name="robots" content="index, follow">
+<link rel="canonical" href="{% block canonical %}https://treks.freeup.in/{% endblock %}">
+<meta property="og:title" content="{% block og_title %}Trek Planner — find your next Himalayan trek{% endblock %}">
+<meta property="og:description" content="{% block og_description %}Browse upcoming treks by month, altitude, difficulty, and cost. See departure availability and flight prices at a glance.{% endblock %}">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://treks.freeup.in/">
+<meta property="og:site_name" content="Trek Planner">
+{% block structured_data %}
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "WebSite",
+  "name": "Trek Planner",
+  "url": "https://treks.freeup.in/",
+  "description": "Compare Himalayan trek departures by month, difficulty, altitude, and flight cost."
+}
+</script>
+{% endblock %}
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;800&family=Work+Sans:wght@400;500;600&display=swap">

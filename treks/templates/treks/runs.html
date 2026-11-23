@@ -1,5 +1,6 @@
 {% extends "treks/base.html" %}
 {% block title %}Refresh Log · Trek Planner{% endblock %}
+{% block meta_robots %}noindex, nofollow{% endblock %}
 {% block content %}
 <form method="post" action="{% url 'treks:refresh' %}" style="display:flex;gap:8px;flex-wrap:wrap">
   {% csrf_token %}
