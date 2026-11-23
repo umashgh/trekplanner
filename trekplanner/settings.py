@@ -136,7 +136,7 @@ STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 
 CSRF_TRUSTED_ORIGINS = [
-    "https://treks.freeup.in",
+    "https://freeup.in",
 ]
 
 # Default primary key field type

@@ -98,7 +98,7 @@ fi
 
 echo ""
 echo "--- Collecting static files ---"
-python3 "$APP_DIR/manage.py" collectstatic --no-input --clear --quiet
+python3 "$APP_DIR/manage.py" collectstatic --no-input --clear
 echo "Static files collected."
 
 # ── 8. Create superuser (interactive) ──────────────────────────────────────
