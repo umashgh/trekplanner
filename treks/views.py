@@ -4,6 +4,7 @@ import threading
 from collections import defaultdict
 from datetime import date, timedelta
 
+from django import forms
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.admin.views.decorators import staff_member_required
@@ -12,7 +13,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
-from .models import Batch, FlightQuote, Operator, OperatorTrek, PageView, PlannedBatch, RefreshRun, Trek
+from .models import Airport, Batch, FlightQuote, Operator, OperatorTrek, PageView, PlannedBatch, RefreshRun, Trek
 from .services.refresh import run_refresh
 
 _refresh_lock = threading.Lock()
@@ -89,17 +90,26 @@ def explore_view(request):
                     break
         days = days_max or days_min or 7
 
-        # Build a simple profile: rise from ~2000m to max, descend back
-        start_alt = min(2000, alt - 500)
-        summit_day = max(1, days * 2 // 3)
-        profile = []
-        for d in range(days):
-            if d <= summit_day:
-                t = d / summit_day if summit_day > 0 else 1
-                profile.append(round(start_alt + (alt - start_alt) * t))
+        # Use real elevation profile if available, otherwise synthesise one
+        distances = None
+        if trek.elevation_profile:
+            ep = trek.elevation_profile
+            if isinstance(ep, dict):
+                profile = ep.get("altitudes", [])
+                distances = ep.get("distances")
             else:
-                t = (d - summit_day) / (days - 1 - summit_day) if (days - 1 - summit_day) > 0 else 1
-                profile.append(round(alt - (alt - start_alt) * t))
+                profile = ep
+        else:
+            start_alt = min(2000, alt - 500)
+            summit_day = max(1, days * 2 // 3)
+            profile = []
+            for d in range(days):
+                if d <= summit_day:
+                    t = d / summit_day if summit_day > 0 else 1
+                    profile.append(round(start_alt + (alt - start_alt) * t))
+                else:
+                    t = (d - summit_day) / (days - 1 - summit_day) if (days - 1 - summit_day) > 0 else 1
+                    profile.append(round(alt - (alt - start_alt) * t))
 
         expensive = (expensive_count > total_priced / 2) if total_priced > 0 else False
 
@@ -151,6 +161,7 @@ def explore_view(request):
             "ops": ops,
             "op_deps": dict(op_deps),
             "profile": profile,
+            "distances": distances,
             "expensive": expensive,
             "note": note,
         })
@@ -471,3 +482,92 @@ def sitemap_xml(request):
         xml.append(f"  <url><loc>{loc}</loc><changefreq>{freq}</changefreq><priority>{priority}</priority></url>")
     xml.append("</urlset>")
     return HttpResponse("\n".join(xml), content_type="application/xml")
+
+
+# ---------------------------------------------------------------------------
+# Trek data form
+# ---------------------------------------------------------------------------
+
+class TrekForm(forms.ModelForm):
+    gateway_airport = forms.CharField(max_length=3)
+    elevation_profile = forms.CharField(required=False)
+
+    class Meta:
+        model = Trek
+        fields = [
+            "name", "country", "state", "region", "gateway_airport", "starting_point",
+            "max_altitude_m", "difficulty", "duration_days_min", "duration_days_max",
+            "cost_inr_min", "cost_inr_max", "best_months", "booking_type",
+            "portal_url", "sort_order", "elevation_profile", "notes", "active",
+        ]
+
+    def clean_gateway_airport(self):
+        iata = self.cleaned_data["gateway_airport"].upper().strip()
+        try:
+            return Airport.objects.get(iata=iata)
+        except Airport.DoesNotExist:
+            raise forms.ValidationError(f"Airport '{iata}' not found.")
+
+    def clean_elevation_profile(self):
+        raw = self.cleaned_data["elevation_profile"].strip()
+        if not raw:
+            return None
+        try:
+            data = json.loads(raw)
+        except (json.JSONDecodeError, ValueError):
+            raise forms.ValidationError("Must be valid JSON — an array or {altitudes, distances}.")
+        if isinstance(data, dict):
+            alts = data.get("altitudes", [])
+            dists = data.get("distances", [])
+            if (not isinstance(alts, list)
+                    or not all(isinstance(x, (int, float)) for x in alts)):
+                raise forms.ValidationError("altitudes must be an array of numbers.")
+            if dists and len(dists) != len(alts):
+                raise forms.ValidationError("distances and altitudes must be the same length.")
+            result = {"altitudes": [int(x) for x in alts]}
+            if dists:
+                result["distances"] = [float(x) for x in dists]
+            return result
+        if isinstance(data, list) and all(isinstance(x, (int, float)) for x in data):
+            return [int(x) for x in data]
+        raise forms.ValidationError("Must be a JSON array or {altitudes: [...], distances: [...]}.")
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if self.instance and self.instance.pk:
+            self.initial["gateway_airport"] = self.instance.gateway_airport_id
+            if self.instance.elevation_profile:
+                self.initial["elevation_profile"] = json.dumps(self.instance.elevation_profile)
+
+
+@staff_member_required
+def trek_form_list(request):
+    trek_list = Trek.objects.all()
+    return render(request, "treks/trek_form.html", {"trek_list": trek_list})
+
+
+@staff_member_required
+def trek_form_edit(request, pk):
+    trek = get_object_or_404(Trek, pk=pk)
+    if request.method == "POST":
+        form = TrekForm(request.POST, instance=trek)
+        if form.is_valid():
+            form.save()
+            messages.success(request, f"Saved {trek.name}.")
+            return redirect("treks:trek_form_list")
+    else:
+        form = TrekForm(instance=trek)
+    return render(request, "treks/trek_form.html", {"form": form, "trek": trek})
+
+
+@staff_member_required
+def trek_form_new(request):
+    if request.method == "POST":
+        form = TrekForm(request.POST)
+        if form.is_valid():
+            trek = form.save()
+            messages.success(request, f"Created {trek.name}.")
+            return redirect("treks:trek_form_edit", pk=trek.pk)
+    else:
+        form = TrekForm()
+    return render(request, "treks/trek_form.html", {"form": form, "trek": None})

@@ -734,25 +734,36 @@ function buildProfileSVG(t) {
   const chartW = W - padL - padR;
   const chartH = H - padT - padB;
 
+  const hasDistances = t.distances && t.distances.length === t.profile.length
+    && t.distances.some(d => d > 0);
+
+  let cumDist;
+  if (hasDistances) {
+    cumDist = [0];
+    for (let i = 1; i < t.distances.length; i++)
+      cumDist.push(cumDist[i-1] + t.distances[i]);
+  }
+  const totalDist = hasDistances ? cumDist[cumDist.length - 1] : 0;
+
   const pts = t.profile.map((alt, i) => {
-    const x = padL + (t.profile.length > 1 ? (i / (t.profile.length - 1)) * chartW : chartW/2);
+    const x = hasDistances && totalDist > 0
+      ? padL + (cumDist[i] / totalDist) * chartW
+      : padL + (t.profile.length > 1 ? (i / (t.profile.length - 1)) * chartW : chartW/2);
     const y = padT + chartH - ((alt - minAlt) / (maxAlt - minAlt)) * chartH;
     return [x, y];
   });
 
   const lineStr = pts.map(p => p.join(",")).join(" ");
-  const areaStr = `${padL},${padT+chartH} ${lineStr} ${padL + chartW},${padT+chartH}`;
+  const areaStr = `${pts[0][0]},${padT+chartH} ${lineStr} ${pts[pts.length-1][0]},${padT+chartH}`;
 
-  // 4000m reference
   const refY = padT + chartH - ((4000 - minAlt) / (maxAlt - minAlt)) * chartH;
 
   let svg = `<svg viewBox="0 0 ${W} ${H}" aria-hidden="true">`;
   svg += `<polygon points="${areaStr}" fill="var(--sun-3)" opacity="0.5"/>`;
-  svg += `<polyline points="${lineStr}" fill="none" stroke="var(--ink)" stroke-width="1.6"/>`;
+  svg += `<polyline points="${lineStr}" fill="none" stroke="var(--ink)" stroke-width="1.6" stroke-linejoin="round"/>`;
   svg += `<line x1="${padL}" y1="${refY}" x2="${padL+chartW}" y2="${refY}" stroke="var(--ink)" stroke-width="0.5" stroke-dasharray="4,3" opacity="0.4"/>`;
   svg += `<text x="${padL+chartW-2}" y="${refY-2}" text-anchor="end" fill="var(--ink-2)" font-size="7" font-family="Work Sans,system-ui" opacity="0.6">4,000 m</text>`;
 
-  // Dot on highest point
   const maxI = t.profile.indexOf(Math.max(...t.profile));
   if (pts[maxI]) {
     svg += `<circle cx="${pts[maxI][0]}" cy="${pts[maxI][1]}" r="2.5" fill="var(--ink)"/>`;

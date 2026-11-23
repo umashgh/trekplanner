@@ -1,0 +1,202 @@
+{% extends "treks/base.html" %}
+{% block title %}{% if trek %}Edit {{ trek.name }}{% else %}New Trek{% endif %} · Trek Planner{% endblock %}
+{% block meta_robots %}noindex, nofollow{% endblock %}
+{% block head %}
+<style>
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px 20px}
+@media (max-width:600px){.form-grid{grid-template-columns:1fr}}
+.form-grid .full{grid-column:1/-1}
+label{display:block;font-weight:500;margin-bottom:3px;font-size:13px}
+input,select,textarea{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:6px;background:var(--surface);color:var(--fg);font:inherit;font-size:14px}
+textarea{min-height:60px;resize:vertical}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--pick);outline-offset:-1px;border-color:var(--pick)}
+.hint{font-size:12px;color:var(--muted);margin-top:2px}
+.actions{display:flex;gap:10px;margin-top:16px;flex-wrap:wrap;align-items:center}
+.trek-list{display:flex;flex-direction:column;gap:6px}
+.trek-list a{display:flex;justify-content:space-between;padding:8px 12px;background:var(--surface);border:1px solid var(--line);border-radius:8px;text-decoration:none;color:var(--fg);font-size:14px}
+.trek-list a:hover{border-color:var(--pick)}
+.trek-list .meta{color:var(--muted);font-size:13px}
+.section-title{font-family:var(--display);font-size:18px;font-weight:600;margin:16px 0 8px}
+.profile-preview{margin-top:8px}
+.profile-preview svg{display:block;width:100%;max-width:400px;height:60px}
+.error{color:var(--warn);font-size:13px}
+</style>
+{% endblock %}
+{% block content %}
+
+{% if trek_list is not None %}
+{# List view #}
+<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+  <h2 style="margin:0">Trek Data</h2>
+  <a href="{% url 'treks:trek_form_new' %}" class="btn">+ New Trek</a>
+</div>
+<div class="trek-list">
+  {% for t in trek_list %}
+  <a href="{% url 'treks:trek_form_edit' t.pk %}">
+    <span>{{ t.name }}</span>
+    <span class="meta">{{ t.state }}{% if t.elevation_profile %} · profile ✓{% endif %}</span>
+  </a>
+  {% endfor %}
+</div>
+
+{% else %}
+{# Edit/create form #}
+<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+  <h2 style="margin:0">{% if trek %}Edit: {{ trek.name }}{% else %}New Trek{% endif %}</h2>
+  <a href="{% url 'treks:trek_form_list' %}" class="btn ghost">← All treks</a>
+</div>
+
+{% if form.errors %}
+<div class="msg warning">Please fix the errors below.</div>
+{% endif %}
+
+<form method="post" class="card">
+  {% csrf_token %}
+  <div class="section-title">Basic info</div>
+  <div class="form-grid">
+    <div>
+      <label for="id_name">Name</label>
+      <input id="id_name" name="name" type="text" value="{{ form.name.value|default:'' }}" required maxlength="100">
+      {% if form.name.errors %}<div class="error">{{ form.name.errors.0 }}</div>{% endif %}
+    </div>
+    <div>
+      <label for="id_country">Country</label>
+      <input id="id_country" name="country" type="text" value="{{ form.country.value|default:'India' }}" maxlength="50">
+    </div>
+    <div>
+      <label for="id_state">State / Region</label>
+      <input id="id_state" name="state" type="text" value="{{ form.state.value|default:'' }}" maxlength="100">
+    </div>
+    <div>
+      <label for="id_region">Region label</label>
+      <input id="id_region" name="region" type="text" value="{{ form.region.value|default:'' }}" maxlength="100">
+    </div>
+    <div>
+      <label for="id_gateway_airport">Gateway airport (IATA)</label>
+      <input id="id_gateway_airport" name="gateway_airport" type="text" value="{{ form.gateway_airport.value|default:'' }}" maxlength="3" required>
+      {% if form.gateway_airport.errors %}<div class="error">{{ form.gateway_airport.errors.0 }}</div>{% endif %}
+    </div>
+    <div>
+      <label for="id_starting_point">Starting point</label>
+      <input id="id_starting_point" name="starting_point" type="text" value="{{ form.starting_point.value|default:'' }}" maxlength="200">
+    </div>
+  </div>
+
+  <div class="section-title">Trek details</div>
+  <div class="form-grid">
+    <div>
+      <label for="id_max_altitude_m">Max altitude (m)</label>
+      <input id="id_max_altitude_m" name="max_altitude_m" type="number" value="{{ form.max_altitude_m.value|default:'' }}">
+    </div>
+    <div>
+      <label for="id_difficulty">Difficulty</label>
+      <select id="id_difficulty" name="difficulty">
+        <option value="1" {% if form.difficulty.value == "1" or form.difficulty.value == 1 %}selected{% endif %}>Easy</option>
+        <option value="2" {% if form.difficulty.value == "2" or form.difficulty.value == 2 or not form.difficulty.value %}selected{% endif %}>Moderate</option>
+        <option value="3" {% if form.difficulty.value == "3" or form.difficulty.value == 3 %}selected{% endif %}>Hard</option>
+      </select>
+    </div>
+    <div>
+      <label for="id_duration_days_min">Duration min (days)</label>
+      <input id="id_duration_days_min" name="duration_days_min" type="number" value="{{ form.duration_days_min.value|default:'' }}">
+    </div>
+    <div>
+      <label for="id_duration_days_max">Duration max (days)</label>
+      <input id="id_duration_days_max" name="duration_days_max" type="number" value="{{ form.duration_days_max.value|default:'' }}">
+    </div>
+    <div>
+      <label for="id_cost_inr_min">Cost min (₹)</label>
+      <input id="id_cost_inr_min" name="cost_inr_min" type="number" value="{{ form.cost_inr_min.value|default:'' }}">
+    </div>
+    <div>
+      <label for="id_cost_inr_max">Cost max (₹)</label>
+      <input id="id_cost_inr_max" name="cost_inr_max" type="number" value="{{ form.cost_inr_max.value|default:'' }}">
+    </div>
+    <div>
+      <label for="id_best_months">Best months</label>
+      <input id="id_best_months" name="best_months" type="text" value="{{ form.best_months.value|default:'' }}" maxlength="50">
+      <div class="hint">Comma-separated month numbers, e.g. 3,4,5,9,10</div>
+    </div>
+    <div>
+      <label for="id_booking_type">Booking type</label>
+      <select id="id_booking_type" name="booking_type">
+        <option value="scheduled" {% if form.booking_type.value == "scheduled" %}selected{% endif %}>Scheduled batches</option>
+        <option value="govt_portal" {% if form.booking_type.value == "govt_portal" %}selected{% endif %}>Government portal</option>
+        <option value="local" {% if form.booking_type.value == "local" %}selected{% endif %}>Local / self-guided</option>
+      </select>
+    </div>
+    <div>
+      <label for="id_portal_url">Portal URL</label>
+      <input id="id_portal_url" name="portal_url" type="url" value="{{ form.portal_url.value|default:'' }}">
+      <div class="hint">For govt_portal treks</div>
+    </div>
+    <div>
+      <label for="id_sort_order">Sort order</label>
+      <input id="id_sort_order" name="sort_order" type="number" value="{{ form.sort_order.value|default:'100' }}">
+    </div>
+  </div>
+
+  <div class="section-title">Elevation profile</div>
+  <div class="form-grid">
+    <div class="full">
+      <label for="id_elevation_profile">Day-by-day altitude (metres, JSON array)</label>
+      <input id="id_elevation_profile" name="elevation_profile" type="text" value="{{ form.elevation_profile.value|default:'' }}" placeholder="[2000, 2800, 3400, 3800, 3200, 2000]">
+      <div class="hint">One altitude per day. Leave blank to use the auto-generated profile.</div>
+      {% if form.elevation_profile.errors %}<div class="error">{{ form.elevation_profile.errors.0 }}</div>{% endif %}
+      <div class="profile-preview" id="profilePreview"></div>
+    </div>
+  </div>
+
+  <div class="section-title">Notes</div>
+  <div class="form-grid">
+    <div class="full">
+      <label for="id_notes">Notes</label>
+      <textarea id="id_notes" name="notes" rows="3">{{ form.notes.value|default:'' }}</textarea>
+    </div>
+  </div>
+
+  <div class="form-grid">
+    <div>
+      <label for="id_active" style="display:inline">
+        <input id="id_active" name="active" type="checkbox" style="width:auto" {% if form.active.value %}checked{% endif %}> Active
+      </label>
+    </div>
+  </div>
+
+  <div class="actions">
+    <button type="submit" class="btn">Save</button>
+    <a href="{% url 'treks:trek_form_list' %}" class="btn ghost">Cancel</a>
+    {% if trek %}
+    <a href="{% url 'admin:treks_trek_change' trek.pk %}" class="muted" style="margin-left:auto;font-size:13px">Open in admin →</a>
+    {% endif %}
+  </div>
+</form>
+{% endif %}
+
+{% endblock %}
+{% block scripts %}
+<script>
+(function(){
+  const inp = document.getElementById('id_elevation_profile');
+  if (!inp) return;
+  const box = document.getElementById('profilePreview');
+  function draw() {
+    try {
+      const arr = JSON.parse(inp.value);
+      if (!Array.isArray(arr) || arr.length < 2) { box.innerHTML = ''; return; }
+      const mn = Math.min(...arr), mx = Math.max(...arr);
+      const w = 400, h = 60, pad = 4;
+      const range = mx - mn || 1;
+      const pts = arr.map((v, i) => {
+        const x = pad + i / (arr.length - 1) * (w - 2 * pad);
+        const y = h - pad - (v - mn) / range * (h - 2 * pad);
+        return x + ',' + y;
+      }).join(' ');
+      box.innerHTML = '<svg viewBox="0 0 ' + w + ' ' + h + '"><polyline fill="none" stroke="var(--pick)" stroke-width="2" points="' + pts + '"/></svg>';
+    } catch(e) { box.innerHTML = ''; }
+  }
+  inp.addEventListener('input', draw);
+  draw();
+})();
+</script>
+{% endblock %}

@@ -46,6 +46,7 @@ nav a{margin-left:14px;font-weight:500;text-decoration:none}
       <a href="{% url 'treks:calendar' %}">Calendar</a>
       {% if request.user.is_staff %}<a href="{% url 'treks:metrics' %}">Metrics</a>{% endif %}
       {% if request.user.is_staff %}<a href="{% url 'treks:runs' %}">Refresh log</a>{% endif %}
+      {% if request.user.is_staff %}<a href="{% url 'treks:trek_form_list' %}">Trek data</a>{% endif %}
       <a href="{% url 'admin:index' %}">Admin</a>
     </nav>
   </header>

@@ -78,6 +78,11 @@ class Trek(models.Model):
     )
     starting_point = models.CharField(max_length=200, blank=True)
     portal_url = models.URLField(blank=True, help_text="For govt_portal treks: URL to check availability.")
+    elevation_profile = models.JSONField(
+        null=True, blank=True,
+        help_text="Day-by-day altitude in metres, e.g. [2000, 2800, 3400, 3800, 3200, 2000]. "
+                  "Populated by scraping or manual entry.",
+    )
     active = models.BooleanField(default=True, help_text="Inactive treks are hidden and skipped on refresh.")
     notes = models.TextField(blank=True)
 
