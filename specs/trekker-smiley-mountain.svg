@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+<defs><clipPath id="badge"><circle cx="256" cy="256" r="250"/></clipPath></defs>
+<g clip-path="url(#badge)">
+<rect width="512" height="512" fill="#D7ECF4"/>
+<path d="M-10 360 L96 128 L150 210 L196 150 L232 210 L250 200 L350 220 L420 70 L530 300 L530 520 L-10 520 Z" fill="#8FA4B8"/>
+<path d="M-10 400 L60 300 L130 360 L330 360 L460 250 L530 330 L530 520 L-10 520 Z" fill="#6E8499"/>
+<path d="M96 128 L78 168 L92 160 L102 174 L120 164 Z" fill="#FFFFFF"/>
+<path d="M420 70 L392 130 L410 120 L424 138 L440 118 L452 130 Z" fill="#FFFFFF"/>
+<path d="M196 150 L182 170 L196 164 L210 170 Z" fill="#FFFFFF"/>
+<ellipse cx="256" cy="520" rx="330" ry="90" fill="#8DBF7A"/>
+</g>
+<circle cx="256" cy="256" r="250" fill="none" stroke="#3A2E1F" stroke-width="10"/>
+
+<g transform="translate(26 14)">
+  <g stroke="#3A2E1F" stroke-width="10" stroke-linejoin="round" stroke-linecap="round">
+    <!-- backpack peeking behind left shoulder -->
+    <rect x="44" y="236" width="124" height="186" rx="30" fill="#D9622B"/>
+    <path d="M44 290 L168 290 L168 266 C168 250 155 236 138 236 L74 236 C57 236 44 250 44 266 Z" fill="#B84E1F"/>
+    <rect x="62" y="300" width="22" height="30" rx="5" fill="#F2C14E"/>
+    <rect x="50" y="356" width="70" height="44" rx="12" fill="#B84E1F"/>
+    <!-- bedroll -->
+    <rect x="34" y="204" width="146" height="42" rx="21" fill="#2F6F5E"/>
+    <line x1="70" y1="206" x2="70" y2="244" stroke-width="7"/>
+    <line x1="144" y1="206" x2="144" y2="244" stroke-width="7"/>
+    <!-- face -->
+    <circle cx="246" cy="276" r="132" fill="#FFC94A"/>
+  </g>
+  <!-- cheeks -->
+  <ellipse cx="178" cy="318" rx="22" ry="13" fill="#F08A5D" opacity="0.45"/>
+  <ellipse cx="330" cy="336" rx="18" ry="11" fill="#F08A5D" opacity="0.45"/>
+  <!-- left eye + raised brow -->
+  <ellipse cx="200" cy="268" rx="12" ry="18" fill="#3A2E1F"/>
+  <circle cx="204" cy="261" r="4" fill="#FFFFFF"/>
+  <path d="M180 232 Q200 216 220 228" fill="none" stroke="#3A2E1F" stroke-width="9" stroke-linecap="round"/>
+  <!-- smile -->
+  <path d="M190 336 Q236 384 290 344" fill="none" stroke="#3A2E1F" stroke-width="10" stroke-linecap="round"/>
+  <!-- hat (khaki bush hat, slight tilt) -->
+  <g transform="rotate(6 246 172)" stroke="#3A2E1F" stroke-width="10" stroke-linejoin="round">
+    <ellipse cx="246" cy="176" rx="176" ry="34" fill="#C9AE72"/>
+    <path d="M152 172 C150 112 180 80 246 80 C312 80 342 112 340 172 Z" fill="#B8995C"/>
+    <path d="M154 146 C200 158 292 158 338 146 L340 168 C292 180 200 180 152 168 Z" fill="#6B5434"/>
+    <path d="M222 86 C232 100 260 100 270 86" fill="none" stroke-width="7"/>
+  </g>
+  <!-- magnifying glass -->
+  <g stroke-linecap="round">
+    <line x1="334" y1="312" x2="404" y2="382" stroke="#3A2E1F" stroke-width="36"/>
+    <line x1="334" y1="312" x2="404" y2="382" stroke="#8A5A2B" stroke-width="20"/>
+    <circle cx="294" cy="272" r="56" fill="#CFEFFF" fill-opacity="0.55" stroke="#3A2E1F" stroke-width="22"/>
+    <circle cx="294" cy="272" r="56" fill="none" stroke="#9AA3AE" stroke-width="9"/>
+    <!-- magnified eye -->
+    <ellipse cx="296" cy="276" rx="22" ry="32" fill="#3A2E1F"/>
+    <circle cx="304" cy="262" r="8" fill="#FFFFFF"/>
+    <path d="M262 250 A40 40 0 0 1 286 234" fill="none" stroke="#FFFFFF" stroke-width="8" opacity="0.9"/>
+  </g>
+  <!-- hand gripping handle -->
+  <g stroke="#3A2E1F" stroke-width="9" stroke-linejoin="round" stroke-linecap="round">
+    <path d="M370 352 C380 334 406 334 418 348 C432 364 428 392 408 402 C390 410 366 400 362 380 C360 370 364 360 370 352 Z" fill="#FFC94A"/>
+    <path d="M378 366 L398 358" fill="none" stroke-width="6"/>
+    <path d="M380 382 L402 374" fill="none" stroke-width="6"/>
+  </g>
+</g>
+</svg>

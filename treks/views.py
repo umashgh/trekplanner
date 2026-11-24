@@ -41,11 +41,13 @@ def explore_view(request):
 
         # Collect operators
         ops = []
+        op_urls = {}
         for l in active_listings:
             ops.append({
                 "short": l.operator.short_name,
                 "name": l.operator.name,
             })
+            op_urls[l.operator.short_name] = l.page_url
 
         # Collect upcoming batches and compute months/departures
         dep_months = set()
@@ -128,6 +130,7 @@ def explore_view(request):
                     "d": b.start_date.day,
                     "end": b.end_date.strftime("%-d %b"),
                     "s": STATUS_MAP.get(b.status, "open"),
+                    "url": op_urls.get(short, ""),
                 })
         # Sort each operator's batches by day
         for m in op_deps:

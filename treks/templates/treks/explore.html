@@ -1,10 +1,11 @@
 {% extends "treks/explore_base.html" %}
+{% load static %}
 {% block title %}Himalayan Trek Planner — compare treks by month, altitude & cost{% endblock %}
 {% block head %}
 <style>
 /* header */
 .site-title{font:800 40px/1 'Big Shoulders Display','Arial Narrow',sans-serif;color:var(--text)}
-.site-title svg{vertical-align:middle;margin-left:6px}
+.site-title img{vertical-align:middle;margin-left:6px}
 .kicker{color:var(--muted);font-size:13px;margin-top:4px}
 
 /* search question */
@@ -72,7 +73,7 @@
 .dep-dot.wait{background:#e6a817;opacity:0.8}
 .dep-dot.full{background:#c0392b;opacity:0.65}
 .dep-dot.none{background:var(--line)}
-.dep-dot[title]{cursor:help}
+.dep-dot[data-dep-date]{cursor:pointer}
 .date-grid-legend{display:flex;gap:10px;font:400 10px 'Work Sans',system-ui,sans-serif;color:var(--ink-2);margin-top:4px}
 .date-grid-legend i{width:10px;height:10px;border-radius:2px;display:inline-block;vertical-align:middle;margin-right:3px}
 
@@ -90,6 +91,14 @@
 .card-booking.local{background:#e8e8e4;color:#555}
 .portal-cta{display:inline-block;margin-top:6px;font:600 12px 'Work Sans',system-ui,sans-serif;color:var(--accent);text-decoration:underline;cursor:pointer}
 
+/* dep popup */
+.dep-pop{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 14px;box-shadow:0 4px 12px rgba(0,0,0,.12);font:400 13px 'Work Sans',system-ui,sans-serif;color:var(--text);min-width:140px;max-width:220px;margin-top:6px}
+.dep-pop-date{font-weight:600;font-size:14px}
+.dep-pop-status{margin-top:2px;font-size:12px;color:var(--muted)}
+.dep-pop-op{margin-top:2px;font-size:12px;color:var(--ink-2)}
+.dep-pop-book{display:inline-block;margin-top:8px;font:600 13px 'Work Sans',system-ui,sans-serif;color:#fff;background:var(--sun);border-radius:6px;padding:5px 14px;text-decoration:none}
+.dep-pop-book:hover{opacity:.85}
+
 /* responsive filter tiles */
 @media (max-width:640px){.tiles{grid-template-columns:1fr 1fr 1fr!important}}
 @media (max-width:420px){.tiles{grid-template-columns:1fr 1fr!important}}
@@ -105,26 +114,17 @@ footer a{color:var(--muted)}
 <header>
   <div class="site-title">Which hike next?
     <svg width="44" height="48" viewBox="0 0 44 48" aria-hidden="true" style="vertical-align:middle;margin-left:8px">
-      <!-- face -->
       <circle cx="20" cy="28" r="14" fill="var(--face)"/>
-      <!-- bucket hat brim -->
       <ellipse cx="20" cy="17" rx="18" ry="4" fill="var(--hat)"/>
-      <!-- hat crown -->
       <path d="M8 17 Q8 6 20 6 Q32 6 32 17" fill="var(--hat)"/>
-      <!-- hat band -->
       <path d="M8 17 L32 17" stroke="var(--ink)" stroke-width="0.8" opacity="0.3"/>
-      <!-- eyes -->
       <ellipse cx="15" cy="26" rx="2" ry="2.2" fill="var(--ink)"/>
       <ellipse cx="25" cy="26" rx="2" ry="2.2" fill="var(--ink)"/>
-      <!-- raised brows -->
       <path d="M12 22.5 Q15 21 18 22.5" fill="none" stroke="var(--ink)" stroke-width="1.2" stroke-linecap="round"/>
       <path d="M22 22.5 Q25 21 28 22.5" fill="none" stroke="var(--ink)" stroke-width="1.2" stroke-linecap="round"/>
-      <!-- thinking mouth: slight side frown -->
       <path d="M17 34 Q20 32.5 24 34" fill="none" stroke="var(--ink)" stroke-width="1.4" stroke-linecap="round"/>
-      <!-- hand on chin -->
       <circle cx="16" cy="37.5" r="2.5" fill="var(--face)" stroke="var(--ink)" stroke-width="0.8"/>
       <circle cx="19" cy="38.5" r="1.8" fill="var(--face)" stroke="var(--ink)" stroke-width="0.6"/>
-      <!-- ? floating -->
       <text x="36" y="14" fill="var(--accent)" font-family="'Big Shoulders Display',sans-serif" font-size="16" font-weight="800">?</text>
     </svg>
   </div>
@@ -220,6 +220,7 @@ footer a{color:var(--muted)}
 
 <!-- 7. Footer -->
 <footer>
+  <img src="{% static 'treks/stick-trekker.svg' %}" alt="Trek Planner" width="84" height="84" style="vertical-align:middle;margin-bottom:4px"><br>
   {% if last_refresh %}Updated from operator sites {{ last_refresh }}{% else %}Not refreshed yet{% endif %}
   · <a href="{% url 'admin:index' %}">Admin</a>
 </footer>
@@ -653,6 +654,42 @@ function renderCards() {
       renderCards();
     });
   });
+
+  // Attach dep-dot click handlers for popup
+  stack.querySelectorAll(".dep-dot[data-dep-date]").forEach(el => {
+    el.addEventListener("click", e => {
+      e.stopPropagation();
+      const grid = el.closest(".date-grid");
+      const existing = grid.parentElement.querySelector(".dep-pop");
+      if (existing && existing.dataset.key === popKey(el)) {
+        existing.remove();
+        return;
+      }
+      dismissPop();
+      const pop = document.createElement("div");
+      pop.className = "dep-pop";
+      pop.dataset.key = popKey(el);
+      pop.innerHTML = buildPopHTML(el.dataset);
+      pop.addEventListener("click", e => e.stopPropagation());
+      grid.insertAdjacentElement("afterend", pop);
+      activePop = pop;
+    });
+  });
+}
+
+function popKey(el) { return el.dataset.depOp + el.dataset.depDate; }
+let activePop = null;
+function dismissPop() {
+  if (activePop) { activePop.remove(); activePop = null; }
+}
+document.addEventListener("click", dismissPop);
+
+function buildPopHTML(d) {
+  let h = `<div class="dep-pop-date">${d.depDate}</div>`;
+  h += `<div class="dep-pop-status">${d.depStatus}</div>`;
+  h += `<div class="dep-pop-op">${d.depOp}</div>`;
+  if (d.depUrl) h += `<a class="dep-pop-book" href="${d.depUrl}" target="_blank" rel="noopener">Book ↗</a>`;
+  return h;
 }
 
 function buildCardHTML(t) {
@@ -778,10 +815,11 @@ function buildDateGrid(t, month) {
   const opNames = Object.keys(opsData);
   if (!opNames.length) return "";
 
-  // Collect all departure days across operators
   const allDays = new Set();
   opNames.forEach(op => opsData[op].forEach(b => allDays.add(b.d)));
   const days = [...allDays].sort((a,b) => a - b);
+
+  const STATUS_LABEL = {open:"Open",wait:"Waitlist",full:"Full"};
 
   let html = `<div class="date-grid"><table><thead><tr><th></th>`;
   days.forEach(d => { html += `<th>${d}</th>`; });
@@ -795,8 +833,8 @@ function buildDateGrid(t, month) {
       const b = batchMap[d];
       if (b) {
         const cls = b.s === "full" ? "full" : b.s === "wait" ? "wait" : "open";
-        const tip = `${d} ${MONTH_NAMES[month-1]} – ${b.end}`;
-        html += `<td><span class="dep-dot ${cls}" title="${tip}"></span></td>`;
+        const dateStr = `${d} ${MONTH_NAMES[month-1]} – ${b.end}`;
+        html += `<td><span class="dep-dot ${cls}" data-dep-date="${esc(dateStr)}" data-dep-status="${esc(STATUS_LABEL[b.s]||'Open')}" data-dep-op="${esc(op)}" data-dep-url="${esc(b.url||'')}"></span></td>`;
       } else {
         html += `<td><span class="dep-dot none"></span></td>`;
       }
